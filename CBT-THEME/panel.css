@@ -1,0 +1,288 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+}
+
+body {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: row;
+  overflow-x: hidden;
+}
+
+.select {
+  padding: 10px;
+  font-size: 16px;
+  border: none;
+  outline: none;
+  border-bottom: 1px solid #cccccc;
+  width: 100%;
+  transition: 0.3s ease;
+  cursor: pointer;
+  margin: 10px;
+}
+
+.select:hover {
+  background: #eeeeee;
+}
+
+.button {
+  width: 100%;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  color: #ffffff;
+  background-color: #f500cc;
+  padding: 12px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  transition: 0.3s ease;
+  margin: 10px;
+}
+
+.button:hover {
+  opacity: 0.8;
+  transform: scale(1.02);
+}
+
+#save,
+#add {
+  background: #05a513;
+}
+
+#discard {
+  background: #d40404;
+}
+
+aside {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  overflow-x: hidden;
+  height: 100vh;
+  width: 17%;
+  background: #f500cc;
+  color: #ffffff;
+}
+
+aside h2 {
+  padding: 10px;
+  text-align: center;
+  margin: 50px 5px;
+  font-size: 1.7rem;
+  border-bottom: 1px solid #ffffff;
+}
+
+aside a {
+  display: block;
+  color: #ffffff;
+  text-decoration: none;
+  padding: 15px;
+  margin: 5px;
+  transition: 0.3s ease;
+}
+
+aside a:hover,
+.current {
+  color: #ffffff;
+  border-left: 3px solid #ffffff;
+  padding-left: 20px;
+}
+
+aside a:active {
+  padding-left: 10px;
+}
+
+section {
+  margin-left: 17%;
+  width: 100%;
+  height: 100vh;
+}
+
+section header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  background: #dddddd;
+}
+
+section header h2 {
+  margin: 10px;
+  margin-top: 15px;
+  font-size: 1.4rem;
+  text-align: center;
+  color: #f500cc;
+}
+
+section header .profile {
+  margin: 10px;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
+section header .profile img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+
+section header .profile .profile-bio {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+}
+
+section header .profile .profile-bio .name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #444444;
+}
+
+section header .profile .profile-bio .role {
+  font-size: 13px;
+  font-weight: 600;
+  color: #999999;
+}
+
+section main {
+  width: 100%;
+  padding: 10px;
+}
+
+section main h1 {
+  margin: 15px;
+  padding: 10px;
+  color: #333333;
+  margin-bottom: 25px;
+  border-bottom: 1px solid #333333;
+}
+
+section main .cards {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+section main .cards .card {
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
+section main .cards .card .icon {
+  width: 50px;
+  height: 50px;
+  background: #f500cc;
+  border-radius: 50%;
+}
+
+section main .cards .card .info {
+  display: flex;
+  flex-direction: column;
+}
+
+section main .cards .card .info .main-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333333;
+}
+
+section main .cards .card .info .text {
+  font-size: 17px;
+  font-weight: 400;
+  color: #999999;
+}
+
+section main .big-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 30px;
+}
+
+section main .big-profile img {
+  width: 200px;
+  height: 200px;
+  border-radius: 20%;
+}
+
+section main .big-profile .profile-info {
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+section main .big-profile .profile-info .name {
+  font-size: 29px;
+  font-weight: 700;
+}
+
+section main .big-profile .profile-info .role .status {
+  background: #0aca04;
+  color: #ffffff;
+  padding: 5px;
+  border-radius: 5px;
+}
+
+section main .credentials {
+  padding: 20px;
+}
+
+section main .credentials .grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+section main .credentials input,
+section main .credentials select {
+  padding: 10px;
+  background: #eeeeee;
+  cursor: text;
+  margin-bottom: 10px;
+}
+section main .credentials .grid input {
+  padding: 10px;
+  background: #eeeeee;
+  cursor: text;
+}
+
+section main .credentials button:hover {
+  transform: scale(1.02);
+}
+
+label {
+  margin: 10px;
+}
+
+form {
+  margin: 20px;
+}

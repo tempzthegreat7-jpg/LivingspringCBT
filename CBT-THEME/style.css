@@ -1,0 +1,223 @@
+:root {
+  --pink: #f500cc;
+  --xs: 7px;
+  --s: 10px;
+  --m: 16px;
+  --l: 1.9rem;
+  --xl: 2.5rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100%;
+  height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
+.primary-logo {
+  font-size: 2.9rem;
+  font-style: oblique;
+  text-align: center;
+  margin-top: 30px;
+  color: var(--pink);
+}
+
+.select {
+  padding: var(--m);
+  font-size: 16px;
+  border: none;
+  outline: none;
+  border-bottom: 1px solid #cccccc;
+  width: 100%;
+  transition: 0.3s ease;
+  cursor: pointer;
+}
+
+.select:hover {
+  background: #eeeeee;
+}
+
+.welcome-container {
+  width: 60%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20rem;
+}
+
+.welcome-container .primary-logo {
+  font-size: 2.9rem;
+  font-style: oblique;
+  text-align: center;
+  margin-top: 30px;
+  color: var(--pink);
+}
+
+.button {
+  width: 100%;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  color: #ffffff;
+  background-color: var(--pink);
+  padding: 12px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.button:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.button:active {
+  opacity: 0.7;
+  transform: scale(1.09);
+}
+
+.role-container {
+  background: #ffffff;
+  width: 75%;
+  margin: 6rem auto;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 200px;
+  padding: 30px;
+  border-radius: 5px;
+}
+
+.role-container .prompt-question {
+  padding: 15px;
+  margin-top: 40px;
+  border-right: 1px solid #cccccc;
+}
+
+.role-container .prompt-question p {
+  font-weight: 800;
+  font-size: 2rem;
+  text-align: center;
+}
+
+.role-container .prompt-answer {
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.role-container .prompt-answer .select {
+  display: block;
+  padding: 15px 15px 15px 10px;
+  font-size: 25px;
+  margin-left: 15px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  text-decoration: none;
+  color: #444444;
+  border-radius: 5px;
+  transition: 0.3s ease;
+}
+
+.role-container .prompt-answer .select:hover {
+  padding: 15px;
+  background: #dddddd;
+  border: none;
+  border-left: 3px solid var(--pink);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.student-name-container {
+  background: #ffffff;
+  width: 50%;
+  margin: 6rem auto;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  padding: 30px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--m);
+}
+
+.student-name-container p {
+  font-size: var(--l);
+  font-weight: 700;
+  margin-bottom: var(--s);
+}
+
+.teacher-login-container {
+  background: #ffffff;
+  width: 40%;
+  margin: 6rem auto;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  padding: 30px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--m);
+}
+
+.teacher-login-container h2 {
+  font-size: var(--l);
+  color: var(--pink);
+  text-align: center;
+}
+
+.teacher-login-container form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xs);
+}
+
+.teacher-login-container label {
+  font-size: var(--m);
+  color: #888888;
+}
+
+.teacher-login-container input {
+  padding: 10px;
+  border: none;
+  border-bottom: 1px solid #bbbbbb;
+  outline: none;
+  transition: 0.3s ease;
+}
+
+.teacher-login-container input::placeholder {
+  color: #bbbbbb;
+}
+
+.teacher-login-container input:hover,
+:focus {
+  background-color: #eeeeee;
+}
+
+.question-mode-container {
+  background: #ffffff;
+  width: 40%;
+  margin: 6rem auto;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  padding: 30px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--xl);
+}
+
+.question-mode-container form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xs);
+}
+
+.question-mode-container p {
+  font-size: var(--l);
+  font-weight: 800;
+}

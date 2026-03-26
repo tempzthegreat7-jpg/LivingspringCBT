@@ -1,0 +1,50 @@
+.subject-pick-container {
+  width: min(560px, 92%);
+  margin: 4rem auto;
+  padding: 28px 24px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #d3deed;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.1);
+}
+
+.subject-pick-container h2 {
+  font-family: "Space Grotesk", "Manrope", sans-serif;
+  color: #172033;
+  text-align: center;
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.subject-pick-container p {
+  text-align: center;
+  color: #5f6f8a;
+  margin-bottom: 18px;
+}
+
+.subject-pick-container form {
+  display: flex;
+  flex-direction: column;
+}
+
+.subject-pick-container label {
+  color: #2f3d57;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.subject-pick-container .button {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .subject-pick-container {
+    margin: 2.2rem auto;
+    padding: 20px 18px;
+  }
+
+  .subject-pick-container h2 {
+    font-size: 1.5rem;
+  }
+}

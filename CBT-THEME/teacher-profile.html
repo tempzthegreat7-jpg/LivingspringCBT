@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Livingspring CBT | Teacher-panel</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <aside>
+      <p><a href="role.html">logout</a></p>
+      <h2>Teacher's Panel</h2>
+      <a href="teacher-panel.html">Dashboard</a>
+      <a href="teacher-profile.html" class="current">Profile</a>
+      <a href="set-questions.html">Set Questions</a>
+    </aside>
+    <section>
+      <header>
+        <h2>Livingspring CBT</h2>
+        <div class="profile">
+          <img src="img.jpg" alt="profile pic" />
+          <div class="profile-bio">
+            <p class="name">Mr Johnson</p>
+            <p class="role">Biology Teacher</p>
+          </div>
+        </div>
+      </header>
+      <main>
+        <h1>Teacher's Profile</h1>
+        <div class="big-profile">
+          <img src="img.jpg" alt="profile pic" />
+          <div class="profile-info">
+            <p class="name">Mr Johnson</p>
+            <p class="role">
+              Biology Teacher <span class="status">Active</span>
+            </p>
+          </div>
+        </div>
+        <div class="credentials">
+          <div class="grid">
+            <div>
+              <label for="">Teacher ID:</label>
+              <input type="text" value="LSRS-003" class="select" readonly />
+            </div>
+            <div>
+              <label for="">Name:</label>
+              <input type="text" class="select" value="Mr Johnson" />
+            </div>
+          </div>
+          <label for="">Age:</label>
+          <input type="number" class="select" value="30" name="" id="" />
+          <label for="">Role:</label>
+          <input
+            type="text"
+            class="select"
+            value="Biology Teacher"
+            name=""
+            id=""
+          />
+          <label for="">Status</label>
+          <select name="" id="" class="select">
+            <option value="active" selected>Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button class="button" id="save">Save</button>
+          <button class="button" id="discard">Discard</button>
+        </div>
+      </main>
+    </section>
+  </body>
+</html>
