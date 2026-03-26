@@ -159,9 +159,15 @@ class Session
      * @return bool
      */
 
-    public static function setFlashMesssge($key, $message)
+    public static function setFlashMessage($key, $message)
     {
         self::set('flash_' . $key, $message);
+    }
+
+    /** @deprecated Use setFlashMessage() */
+    public static function setFlashMesssge($key, $message)
+    {
+        self::setFlashMessage($key, $message);
     }
 
     /**
@@ -172,11 +178,17 @@ class Session
      * @return mixed
      */
 
-    public static function getFlashMesssge($key, $default = null)
+    public static function getFlashMessage($key, $default = null)
     {
         $message = self::get('flash_' . $key, $default);
         self::clear('flash_' . $key);
 
         return $message;
+    }
+
+    /** @deprecated Use getFlashMessage() */
+    public static function getFlashMesssge($key, $default = null)
+    {
+        return self::getFlashMessage($key, $default);
     }
 }

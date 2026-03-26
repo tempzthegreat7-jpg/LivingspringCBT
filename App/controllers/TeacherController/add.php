@@ -98,7 +98,7 @@ if ($questionLimit < 1) {
     $errors['question_limit'] = 'Number of questions must be at least 1.';
 }
 
-$tableName = questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term);
+$tableName = safeTableName(questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term));
 if ($tableName === '_') {
     $errors['table'] = 'Invalid subject/class combination.';
 }

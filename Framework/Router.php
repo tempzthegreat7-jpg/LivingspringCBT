@@ -252,7 +252,7 @@ class Router
                         } else {
                             redirect('/teacher');
                         }
-                    } elseif (Session::has('student') ?? '') {
+                    } elseif (Session::has('student')) {
                         redirect('/student/dashboard');
                     }
                 } elseif ($route['middleware'] === 'student') {

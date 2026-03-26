@@ -41,7 +41,7 @@ if (!$configRow) {
     redirect('/student/question-set');
 }
 
-$tableName = (string) ($configRow['table_name'] ?? '');
+$tableName = safeTableName((string) ($configRow['table_name'] ?? ''));
 $tableExists = $db->query('SHOW TABLES LIKE :table_name', ['table_name' => $tableName])->fetch();
 if (!$tableExists) {
     // Setup exists, but its questions table is missing.
@@ -52,7 +52,8 @@ $limit = max(0, (int) ($configRow['question_limit'] ?? 0));
 
 if ($limit > 0) {
     // Use only the number of questions the teacher set.
-    $info = $db->query("SELECT * FROM {$tableName} LIMIT {$limit}")->fetchAll();
+    $limitInt = (int) $limit;
+    $info = $db->query("SELECT * FROM {$tableName} LIMIT {$limitInt}")->fetchAll();
 } else {
     $info = $db->query("SELECT * FROM {$tableName}")->fetchAll();
 }

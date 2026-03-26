@@ -53,7 +53,7 @@ if (!in_array($studentClass, $allowedClasses, true)) {
 }
 
 $resolvedHeader = $task === 'exam' ? '' : $header;
-$tableName = questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term);
+$tableName = safeTableName(questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term));
 $tables = $db->query('SHOW TABLES')->fetchAll();
 $hasTable = false;
 

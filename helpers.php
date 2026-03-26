@@ -23,7 +23,7 @@ function loadView($name, $data = [])
 {
     $viewPath = basePath("App/views/{$name}-view.php");
     if (file_exists($viewPath)) {
-        extract($data);
+        extract($data, EXTR_SKIP);
         require $viewPath;
     } else {
         echo "No such File as '{$name}-view'.php!";
@@ -41,7 +41,7 @@ function loadPartial($name, $data = [])
 {
     $partialPath = basePath("App/views/partials/{$name}.php");
     if (file_exists($partialPath)) {
-        extract($data);
+        extract($data, EXTR_SKIP);
         require $partialPath;
     } else {
         echo "Partial '{$name}' not found!";
@@ -73,8 +73,9 @@ function inspect($value)
 function inspectAndDie($value)
 {
     echo '<pre>';
-    die(var_dump($value));
+    var_dump($value);
     echo '</pre>';
+    die();
 }
 
 /**
@@ -100,6 +101,23 @@ function formatSalary($salary)
 function sanitize($dirty)
 {
     return filter_var(trim($dirty), FILTER_SANITIZE_SPECIAL_CHARS);
+}
+
+/**
+ * Validate a dynamic table name to prevent SQL injection.
+ * Only allows lowercase alphanumeric and underscore, 1-64 chars.
+ *
+ * @param string $name
+ * @return string
+ * @throws InvalidArgumentException
+ */
+function safeTableName($name)
+{
+    $clean = (string) $name;
+    if ($clean === '' || !preg_match('/^[a-z0-9_]{1,64}$/', $clean)) {
+        throw new InvalidArgumentException('Invalid table name: ' . substr($clean, 0, 80));
+    }
+    return $clean;
 }
 
 /**

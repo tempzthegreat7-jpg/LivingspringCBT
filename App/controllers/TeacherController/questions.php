@@ -160,7 +160,7 @@ if ($task === 'exam') {
 }
 
 if ($canLoadContext && $shouldPersistContext) {
-    $tableName = questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term);
+    $tableName = safeTableName(questionBankTableNameForTask($subject, $studentClass, $task, $resolvedHeader, $term));
 
     if ($tableName !== '_') {
         // Ensure question table exists for this context before preview.

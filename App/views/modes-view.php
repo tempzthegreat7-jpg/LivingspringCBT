@@ -23,10 +23,7 @@ foreach ($tableRows as $tableRow) {
 $assessments = [];
 $availableSubjects = [];
 foreach ($rows as $row) {
-    $tableName = (string) ($row['table_name'] ?? '');
-    if ($tableName === '') {
-        continue;
-    }
+    $tableName = safeTableName((string) ($row['table_name'] ?? ''));
 
     if (!isset($existingTableMap[$tableName])) {
         continue;

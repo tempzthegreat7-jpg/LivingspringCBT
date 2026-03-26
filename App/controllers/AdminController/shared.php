@@ -6,6 +6,24 @@ if (function_exists('adminEnsureTeacherUsersSchema')) {
 
 function adminEnsureTeacherUsersSchema($db)
 {
+    // Create the table if it doesn't exist (fresh installs).
+    $db->query("CREATE TABLE IF NOT EXISTS teacher_users (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        name VARCHAR(120) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'teacher',
+        can_set_questions TINYINT(1) NOT NULL DEFAULT 1,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        can_manage_students TINYINT(1) NOT NULL DEFAULT 0,
+        assigned_subjects VARCHAR(255) NOT NULL DEFAULT 'english',
+        assigned_subject_categories TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at DATETIME NULL,
+        failed_login_attempts INT(11) NOT NULL DEFAULT 0,
+        lock_until DATETIME NULL,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
     // Make sure required columns exist before using admin features.
     $columns = [];
     $describeRows = $db->query('DESCRIBE teacher_users')->fetchAll();

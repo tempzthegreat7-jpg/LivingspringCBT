@@ -24,10 +24,7 @@ $rows = $dbExam->query(
 $examBanks = [];
 
 foreach ($rows as $row) {
-    $tableName = (string) ($row['table_name'] ?? '');
-    if ($tableName === '') {
-        continue;
-    }
+    $tableName = safeTableName((string) ($row['table_name'] ?? ''));
 
     $tableExists = $dbExam->query('SHOW TABLES LIKE :table_name', ['table_name' => $tableName])->fetch();
     if (!$tableExists) {

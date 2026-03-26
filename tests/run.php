@@ -104,7 +104,29 @@ $run('Validation::string respects min and max', function () use ($assertSame) {
     $assertSame(false, Validation::string('A', 2, 10), 'String should fail min bound');
 });
 
-echo PHP_EOL;
+$run('safeTableName accepts valid table name', function () use ($assertSame) {
+    $assertSame('english_ss3_first_term', safeTableName('english_ss3_first_term'), 'Valid table name should pass');
+});
+
+$run('safeTableName rejects SQL injection attempt', function () use ($assertTrue) {
+    $threw = false;
+    try {
+        safeTableName("english'; DROP TABLE--");
+    } catch (InvalidArgumentException $e) {
+        $threw = true;
+    }
+    $assertTrue($threw, 'SQL injection string should throw InvalidArgumentException');
+});
+
+$run('safeTableName rejects empty string', function () use ($assertTrue) {
+    $threw = false;
+    try {
+        safeTableName('');
+    } catch (InvalidArgumentException $e) {
+        $threw = true;
+    }
+    $assertTrue($threw, 'Empty string should throw InvalidArgumentException');
+});
 echo "Passed: {$testsPassed}" . PHP_EOL;
 echo "Failed: {$testsFailed}" . PHP_EOL;
 

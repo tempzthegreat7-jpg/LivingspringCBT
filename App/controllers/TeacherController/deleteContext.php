@@ -81,6 +81,7 @@ foreach ($normalizedContextIds as $selectedContextId) {
     $tableName = (string) ($row['table_name'] ?? '');
     if ($tableName !== '') {
         // Remove context question table before deleting metadata row.
+        $tableName = safeTableName($tableName);
         $db->query("DROP TABLE IF EXISTS {$tableName}");
     }
 

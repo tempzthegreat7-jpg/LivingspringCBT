@@ -14,6 +14,15 @@ $studentName = trim((string) ($_POST['student_name'] ?? ''));
 $studentClass = adminNormalizeStudentClass($_POST['student_class'] ?? 'SS3');
 $studentPassword = trim((string) ($_POST['student_password'] ?? ''));
 
+$maxLoginAttempts = 5;
+$lockDurationSeconds = 30;
+$lockUntil = (int) (Session::get('student_login_lock_until') ?? 0);
+if ($lockUntil > time()) {
+    $fail('Too many login attempts. Please wait ' . ($lockUntil - time()) . ' seconds.');
+    return;
+}
+Session::clear('student_login_lock_until');
+
 $acceptHeader = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
 $isJsonExpected = strpos($acceptHeader, 'application/json') !== false
     || strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
@@ -71,6 +80,12 @@ if ((int) ($student['is_active'] ?? 0) !== 1) {
 }
 
 if (!adminVerifyPassword($studentPassword, (string) ($student['password_hash'] ?? ''))) {
+    $failedAttempts = max(0, (int) (Session::get('student_login_failed_attempts') ?? 0)) + 1;
+    Session::set('student_login_failed_attempts', $failedAttempts);
+    if ($failedAttempts >= $maxLoginAttempts) {
+        Session::set('student_login_lock_until', time() + $lockDurationSeconds);
+        Session::set('student_login_failed_attempts', 0);
+    }
     $fail('Incorrect student password.');
     return;
 }
@@ -86,6 +101,8 @@ $sessionToken = bin2hex(random_bytes(32));
 adminMarkStudentSessionActive($db, (int) ($student['id'] ?? 0), $sessionToken);
 
 Session::regenerate();
+Session::set('student_login_failed_attempts', 0);
+Session::clear('student_login_lock_until');
 Session::set('student', [
     'id' => (int) ($student['id'] ?? 0),
     'name' => (string) ($student['student_name'] ?? $studentName),
@@ -99,7 +116,6 @@ if ($isJsonExpected) {
     header('Content-Type: application/json');
     echo json_encode([
         'ok' => true,
-        'password' => (string) ($student['display_password'] ?? ''),
         'redirect' => '/student/dashboard'
     ]);
     return;

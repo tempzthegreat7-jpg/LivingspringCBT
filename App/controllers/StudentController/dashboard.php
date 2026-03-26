@@ -74,10 +74,7 @@ foreach ($tableRows as $tableRow) {
 
 $availableTaskRows = [];
 foreach ($availableAssessmentRows as $cfg) {
-    $tableName = (string) ($cfg['table_name'] ?? '');
-    if ($tableName === '') {
-        continue;
-    }
+    $tableName = safeTableName((string) ($cfg['table_name'] ?? ''));
 
     if (!isset($existingTableMap[$tableName])) {
         continue;
