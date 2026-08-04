@@ -155,6 +155,131 @@ function adminNormalizeStudentClass($value, $default = 'SS3')
     return in_array($normalized, adminClassOptions(), true) ? $normalized : strtoupper((string) $default);
 }
 
+function adminEnsureFeedbackSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS student_feedback (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            teacher_user_id INT(11) NOT NULL,
+            student_user_id INT(11) NULL,
+            student_identity_token VARCHAR(64) NULL,
+            rating_teaching_explanation TINYINT(1) NOT NULL DEFAULT 0,
+            rating_teaching_clarity TINYINT(1) NOT NULL DEFAULT 0,
+            rating_punctuality_to_class TINYINT(1) NOT NULL DEFAULT 0,
+            rating_approachable TINYINT(1) NOT NULL DEFAULT 0,
+            rating_likeable TINYINT(1) NOT NULL DEFAULT 0,
+            rating_discipline TINYINT(1) NOT NULL DEFAULT 0,
+            rating_overall TINYINT(1) NOT NULL DEFAULT 0,
+            feedback_text TEXT NOT NULL,
+            moderated_feedback TEXT NULL,
+            review_status VARCHAR(30) NOT NULL DEFAULT "pending_review",
+            review_notes TEXT NULL,
+            submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME NULL,
+            reviewed_by_admin_id INT(11) NULL,
+            approved_at DATETIME NULL,
+            approved_by_admin_id INT(11) NULL,
+            approved_teacher_visible TINYINT(1) NOT NULL DEFAULT 0,
+            INDEX idx_student_feedback_teacher (teacher_user_id),
+            INDEX idx_student_feedback_status (review_status),
+            INDEX idx_student_feedback_submitted_at (submitted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
+    );
+
+    $columns = [];
+    $describeRows = $db->query('DESCRIBE student_feedback')->fetchAll();
+    foreach ($describeRows as $row) {
+        $columns[(string) ($row['Field'] ?? '')] = true;
+    }
+
+    $addColumn = function ($columnName, $definition) use ($db) {
+        $db->query("ALTER TABLE student_feedback ADD COLUMN {$definition}");
+    };
+
+    if (!isset($columns['teacher_user_id'])) {
+        $addColumn('teacher_user_id', 'teacher_user_id INT(11) NOT NULL AFTER id');
+    }
+
+    if (!isset($columns['student_user_id'])) {
+        $addColumn('student_user_id', 'student_user_id INT(11) NULL AFTER teacher_user_id');
+    }
+
+    if (!isset($columns['student_identity_token'])) {
+        $addColumn('student_identity_token', 'student_identity_token VARCHAR(64) NULL AFTER student_user_id');
+    }
+
+    if (!isset($columns['rating_teaching_explanation'])) {
+        $addColumn('rating_teaching_explanation', 'rating_teaching_explanation TINYINT(1) NOT NULL DEFAULT 0 AFTER student_identity_token');
+    }
+
+    if (!isset($columns['rating_teaching_clarity'])) {
+        $addColumn('rating_teaching_clarity', 'rating_teaching_clarity TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_teaching_explanation');
+    }
+
+    if (!isset($columns['rating_punctuality_to_class'])) {
+        $addColumn('rating_punctuality_to_class', 'rating_punctuality_to_class TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_teaching_clarity');
+    }
+
+    if (!isset($columns['rating_approachable'])) {
+        $addColumn('rating_approachable', 'rating_approachable TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_punctuality_to_class');
+    }
+
+    if (!isset($columns['rating_likeable'])) {
+        $addColumn('rating_likeable', 'rating_likeable TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_approachable');
+    }
+
+    if (!isset($columns['rating_discipline'])) {
+        $addColumn('rating_discipline', 'rating_discipline TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_likeable');
+    }
+
+    if (!isset($columns['rating_overall'])) {
+        $addColumn('rating_overall', 'rating_overall TINYINT(1) NOT NULL DEFAULT 0 AFTER rating_discipline');
+    }
+
+    if (!isset($columns['feedback_text'])) {
+        $addColumn('feedback_text', 'feedback_text TEXT NOT NULL AFTER rating_overall');
+    }
+
+    if (!isset($columns['moderated_feedback'])) {
+        $addColumn('moderated_feedback', 'moderated_feedback TEXT NULL AFTER feedback_text');
+    }
+
+    if (!isset($columns['review_status'])) {
+        $addColumn('review_status', 'review_status VARCHAR(30) NOT NULL DEFAULT "pending_review" AFTER moderated_feedback');
+    }
+
+    if (!isset($columns['review_notes'])) {
+        $addColumn('review_notes', 'review_notes TEXT NULL AFTER review_status');
+    }
+
+    if (!isset($columns['submitted_at'])) {
+        $addColumn('submitted_at', 'submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER review_notes');
+    }
+
+    if (!isset($columns['reviewed_at'])) {
+        $addColumn('reviewed_at', 'reviewed_at DATETIME NULL AFTER submitted_at');
+    }
+
+    if (!isset($columns['reviewed_by_admin_id'])) {
+        $addColumn('reviewed_by_admin_id', 'reviewed_by_admin_id INT(11) NULL AFTER reviewed_at');
+    }
+
+    if (!isset($columns['approved_at'])) {
+        $addColumn('approved_at', 'approved_at DATETIME NULL AFTER reviewed_by_admin_id');
+    }
+
+    if (!isset($columns['approved_by_admin_id'])) {
+        $addColumn('approved_by_admin_id', 'approved_by_admin_id INT(11) NULL AFTER approved_at');
+    }
+
+    if (!isset($columns['approved_teacher_visible'])) {
+        $addColumn('approved_teacher_visible', 'approved_teacher_visible TINYINT(1) NOT NULL DEFAULT 0 AFTER approved_by_admin_id');
+    }
+
+    $db->query("UPDATE student_feedback SET review_status = 'pending_review' WHERE review_status IS NULL OR TRIM(review_status) = ''");
+    $db->query("UPDATE student_feedback SET approved_teacher_visible = 0 WHERE approved_teacher_visible IS NULL");
+}
+
 function adminEnsureStudentUsersSchema($db)
 {
     $db->query(
@@ -221,6 +346,78 @@ function adminEnsureStudentUsersSchema($db)
     $db->query("UPDATE student_users SET student_class = 'SS3' WHERE student_class IS NULL OR TRIM(student_class) = ''");
     $db->query("UPDATE student_users SET display_password = 'changeme123' WHERE display_password IS NULL OR TRIM(display_password) = ''");
     $db->query('UPDATE student_users SET is_active = 1 WHERE is_active IS NULL');
+    adminEnsureStudentLoginLogsSchema($db);
+}
+
+function adminEnsureStudentLoginLogsSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS student_login_logs (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            student_user_id INT(11) NOT NULL,
+            student_name VARCHAR(120) NOT NULL,
+            student_class VARCHAR(20) NOT NULL,
+            ip_address VARCHAR(64) NULL,
+            user_agent VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_student_login_logs_student (student_user_id),
+            INDEX idx_student_login_logs_created_at (created_at)
+        )'
+    );
+}
+
+function adminLogStudentLogin($db, $studentRow)
+{
+    adminEnsureStudentLoginLogsSchema($db);
+
+    $studentId = (int) ($studentRow['id'] ?? 0);
+    $studentName = trim((string) ($studentRow['student_name'] ?? ''));
+    $studentClass = adminNormalizeStudentClass((string) ($studentRow['student_class'] ?? 'SS3'));
+
+    if ($studentId <= 0 || $studentName === '') {
+        return;
+    }
+
+    $db->query(
+        'INSERT INTO student_login_logs (student_user_id, student_name, student_class, ip_address, user_agent, created_at)
+         VALUES (:student_user_id, :student_name, :student_class, :ip_address, :user_agent, NOW())',
+        [
+            'student_user_id' => $studentId,
+            'student_name' => $studentName,
+            'student_class' => $studentClass,
+            'ip_address' => adminClientIp(),
+            'user_agent' => substr(trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 255)
+        ]
+    );
+}
+
+function adminFetchStudentLoginLogs($db, $limit = 300, $studentUserId = null)
+{
+    adminEnsureStudentLoginLogsSchema($db);
+
+    $rowLimit = max(1, min(1000, (int) $limit));
+    $safeStudentId = (int) $studentUserId;
+    $params = [];
+    $whereClause = '';
+
+    if ($safeStudentId > 0) {
+        $whereClause = 'WHERE student_user_id = :student_user_id';
+        $params['student_user_id'] = $safeStudentId;
+    }
+
+    return $db->query(
+        "SELECT id, student_user_id, student_name, student_class, ip_address, user_agent, created_at
+         FROM student_login_logs
+         {$whereClause}
+         ORDER BY id DESC
+         LIMIT {$rowLimit}",
+        $params
+    )->fetchAll();
+}
+
+function adminStudentLoginLogPassword()
+{
+    return 'livingspring2019';
 }
 
 function adminEnsureStudentClassLocksSchema($db)
@@ -1323,4 +1520,373 @@ function adminAuditLog($db, $actionKey, $entityType, $entityId = null, $summary 
             'user_agent' => substr(trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 255)
         ]
     );
+}
+
+function adminEnsureFuturePlansSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS future_plans (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            plan_text TEXT NOT NULL,
+            is_resolved TINYINT(1) NOT NULL DEFAULT 0,
+            resolved_at DATETIME NULL,
+            created_by_admin_id INT(11) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )'
+    );
+}
+
+function adminCreateFuturePlan($db, $planText, $adminUserId = null)
+{
+    adminEnsureFuturePlansSchema($db);
+
+    $safeText = trim((string) $planText);
+    if ($safeText === '') {
+        return 0;
+    }
+
+    $creatorId = (int) $adminUserId;
+    if ($creatorId <= 0) {
+        $creatorId = (int) (Session::get('user')['id'] ?? 0);
+        if ($creatorId <= 0) {
+            $creatorId = null;
+        }
+    }
+
+    $db->query(
+        'INSERT INTO future_plans (plan_text, created_by_admin_id)
+         VALUES (:plan_text, :created_by_admin_id)',
+        [
+            'plan_text' => $safeText,
+            'created_by_admin_id' => $creatorId
+        ]
+    );
+
+    return (int) ($db->connection->lastInsertId() ?? 0);
+}
+
+function adminFetchFuturePlans($db, $limit = 120)
+{
+    adminEnsureFuturePlansSchema($db);
+
+    $rowLimit = max(1, min(300, (int) $limit));
+
+    return $db->query(
+        "SELECT id, plan_text, is_resolved, resolved_at, created_by_admin_id, created_at
+         FROM future_plans
+         ORDER BY created_at DESC, id DESC
+         LIMIT {$rowLimit}"
+    )->fetchAll();
+}
+
+function adminResolveFuturePlan($db, $id)
+{
+    $planId = (int) $id;
+    if ($planId <= 0) {
+        return;
+    }
+
+    $db->query(
+        'UPDATE future_plans
+         SET is_resolved = 1,
+             resolved_at = NOW()
+         WHERE id = :id
+           AND is_resolved = 0
+         LIMIT 1',
+        ['id' => $planId]
+    );
+}
+
+function adminUnresolveFuturePlan($db, $id)
+{
+    $planId = (int) $id;
+    if ($planId <= 0) {
+        return;
+    }
+
+    $db->query(
+        'UPDATE future_plans
+         SET is_resolved = 0,
+             resolved_at = NULL
+         WHERE id = :id
+           AND is_resolved = 1
+         LIMIT 1',
+        ['id' => $planId]
+    );
+}
+
+function adminEnsureControlSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS admin_control_commands (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            command_type VARCHAR(40) NOT NULL,
+            payload_json LONGTEXT NULL,
+            target_scope VARCHAR(20) NOT NULL DEFAULT "all",
+            status VARCHAR(20) NOT NULL DEFAULT "pending",
+            created_by_admin_id INT(11) NULL,
+            processed_count INT(11) NOT NULL DEFAULT 0,
+            total_targets INT(11) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            executed_at DATETIME NULL,
+            INDEX idx_command_status (status, created_at)
+        )'
+    );
+
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS admin_control_acknowledgments (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            command_id INT(11) NOT NULL,
+            session_type VARCHAR(20) NOT NULL,
+            session_identifier VARCHAR(255) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "pending",
+            response_json LONGTEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            acknowledged_at DATETIME NULL,
+            INDEX idx_command_session (command_id, session_identifier)
+        )'
+    );
+
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS exam_global_controls (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            control_key VARCHAR(40) NOT NULL,
+            control_value VARCHAR(255) NOT NULL,
+            created_by_admin_id INT(11) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NULL,
+            UNIQUE KEY uniq_control_key (control_key)
+        )'
+    );
+}
+
+function adminCreateControlCommand($db, $commandType, $payload, $targetScope, $adminUserId = null)
+{
+    adminEnsureControlSchema($db);
+
+    $safeType = strtolower(trim((string) $commandType));
+    $safeScope = strtolower(trim((string) $targetScope));
+    $safePayload = is_array($payload) ? json_encode($payload) : '{}';
+    $creatorId = (int) $adminUserId;
+    if ($creatorId <= 0) {
+        $creatorId = (int) (Session::get('user')['id'] ?? 0);
+        if ($creatorId <= 0) {
+            $creatorId = null;
+        }
+    }
+
+    $db->query(
+        'INSERT INTO admin_control_commands (command_type, payload_json, target_scope, created_by_admin_id)
+         VALUES (:command_type, :payload_json, :target_scope, :created_by_admin_id)',
+        [
+            'command_type' => $safeType,
+            'payload_json' => $safePayload,
+            'target_scope' => $safeScope,
+            'created_by_admin_id' => $creatorId
+        ]
+    );
+
+    return (int) ($db->connection->lastInsertId() ?? 0);
+}
+
+function adminFetchControlCommandsForSession($db, $sessionType, $sessionIdentifier, $sinceId = 0)
+{
+    adminEnsureControlSchema($db);
+
+    $since = max(0, (int) $sinceId);
+    $safeType = strtolower(trim((string) $sessionType));
+    $safeIdentifier = trim((string) $sessionIdentifier);
+
+    if ($safeType === '' || $safeIdentifier === '') {
+        return [];
+    }
+
+    $studentClass = '';
+    if ($safeType === 'student') {
+        $parts = explode('|', $safeIdentifier);
+        $studentClass = strtoupper(trim((string) ($parts[1] ?? '')));
+    }
+
+    $rows = $db->query(
+        "SELECT id, command_type, payload_json, target_scope, created_at
+         FROM admin_control_commands
+         WHERE id > :since_id
+           AND status IN ('pending', 'executing')
+           AND (
+               target_scope = 'all'
+               OR (:student_class <> '' AND target_scope = CONCAT('class:', :student_class))
+           )
+         ORDER BY created_at ASC, id ASC
+         LIMIT 50",
+        [
+            'since_id' => $since,
+            'student_class' => $studentClass
+        ]
+    )->fetchAll();
+
+    $commands = [];
+    foreach ($rows as $row) {
+        $commands[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'command_type' => (string) ($row['command_type'] ?? ''),
+            'payload' => json_decode((string) ($row['payload_json'] ?? '{}'), true),
+            'target_scope' => (string) ($row['target_scope'] ?? 'all'),
+            'created_at' => (string) ($row['created_at'] ?? '')
+        ];
+    }
+
+    return $commands;
+}
+
+function adminAcknowledgeControlCommand($db, $commandId, $sessionType, $sessionIdentifier, $response = null)
+{
+    adminEnsureControlSchema($db);
+
+    $commandId = (int) $commandId;
+    $safeType = strtolower(trim((string) $sessionType));
+    $safeIdentifier = trim((string) $sessionIdentifier);
+    $safeResponse = is_array($response) ? json_encode($response) : null;
+
+    if ($commandId <= 0 || $safeType === '' || $safeIdentifier === '') {
+        return;
+    }
+
+    $db->query(
+        'INSERT INTO admin_control_acknowledgments (command_id, session_type, session_identifier, response_json)
+         VALUES (:command_id, :session_type, :session_identifier, :response_json)
+         ON DUPLICATE KEY UPDATE
+            response_json = VALUES(response_json),
+            acknowledged_at = NOW()',
+        [
+            'command_id' => $commandId,
+            'session_type' => $safeType,
+            'session_identifier' => $safeIdentifier,
+            'response_json' => $safeResponse
+        ]
+    );
+
+    $db->query(
+        'UPDATE admin_control_commands
+         SET processed_count = processed_count + 1,
+             executed_at = COALESCE(executed_at, NOW())
+         WHERE id = :id
+         LIMIT 1',
+        ['id' => $commandId]
+    );
+}
+
+function adminUpsertGlobalControl($db, $controlKey, $controlValue, $adminUserId = null)
+{
+    adminEnsureControlSchema($db);
+
+    $safeKey = strtolower(trim((string) $controlKey));
+    $safeValue = (string) $controlValue;
+    $creatorId = (int) $adminUserId;
+    if ($creatorId <= 0) {
+        $creatorId = (int) (Session::get('user')['id'] ?? 0);
+        if ($creatorId <= 0) {
+            $creatorId = null;
+        }
+    }
+
+    $db->query(
+        'INSERT INTO exam_global_controls (control_key, control_value, created_by_admin_id, updated_at)
+         VALUES (:control_key, :control_value, :created_by_admin_id, NOW())
+         ON DUPLICATE KEY UPDATE
+            control_value = VALUES(control_value),
+            updated_at = NOW()',
+        [
+            'control_key' => $safeKey,
+            'control_value' => $safeValue,
+            'created_by_admin_id' => $creatorId
+        ]
+    );
+}
+
+function adminGetGlobalControlValue($db, $controlKey, $default = '0')
+{
+    adminEnsureControlSchema($db);
+
+    $safeKey = strtolower(trim((string) $controlKey));
+    $row = $db->query(
+        'SELECT control_value FROM exam_global_controls WHERE control_key = :control_key LIMIT 1',
+        ['control_key' => $safeKey]
+    )->fetch();
+
+    return $row ? (string) ($row['control_value'] ?? $default) : $default;
+}
+
+function adminFetchActiveExamSessions($db, $limit = 300)
+{
+    ensureStudentExamSessionsSchema($db);
+
+    $rowLimit = max(1, min(500, (int) $limit));
+
+    return $db->query(
+        "SELECT id, student_name, student_class, subject,
+                assessment_id, ends_at, duration_seconds,
+                timer_paused, time_bonus_seconds, admin_paused_at,
+                current_index, total_questions, score
+         FROM student_exam_sessions
+         WHERE status = 'in_progress'
+           AND task_type = 'exam'
+           AND ends_at > UNIX_TIMESTAMP()
+           AND (attempt_logged = 0 OR attempt_logged IS NULL)
+         ORDER BY updated_at DESC, id DESC
+         LIMIT {$rowLimit}"
+    )->fetchAll();
+}
+
+function adminFetchControlUpdatesSince($db, $sinceId = 0)
+{
+    adminEnsureControlSchema($db);
+
+    $since = max(0, (int) $sinceId);
+    $updates = [];
+
+    $commands = $db->query(
+        "SELECT id, command_type, payload_json, target_scope, created_at
+         FROM admin_control_commands
+         WHERE id > :since_id
+           AND status IN ('pending', 'executing')
+         ORDER BY created_at ASC, id ASC
+         LIMIT 100",
+        ['since_id' => $since]
+    )->fetchAll();
+
+    foreach ($commands as $row) {
+        $updates[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'event_type' => 'command',
+            'data' => [
+                'command_id' => (int) ($row['id'] ?? 0),
+                'command_type' => (string) ($row['command_type'] ?? ''),
+                'payload' => json_decode((string) ($row['payload_json'] ?? '{}'), true),
+                'target_scope' => (string) ($row['target_scope'] ?? 'all'),
+                'created_at' => (string) ($row['created_at'] ?? '')
+            ]
+        ];
+    }
+
+    usort($updates, function ($a, $b) {
+        return ($a['id'] ?? 0) <=> ($b['id'] ?? 0);
+    });
+
+    return $updates;
+}
+
+function adminFetchActiveTeachers($db, $limit = 100)
+{
+    adminEnsureControlSchema($db);
+
+    $rowLimit = max(1, min(200, (int) $limit));
+
+    return $db->query(
+        "SELECT id, name, role, is_active, last_seen_at
+         FROM teacher_users
+         WHERE is_active = 1
+           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+         ORDER BY last_seen_at DESC, id DESC
+         LIMIT {$rowLimit}"
+    )->fetchAll();
 }

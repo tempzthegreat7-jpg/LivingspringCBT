@@ -99,6 +99,7 @@ if ($hasActiveSession) {
 
 $sessionToken = bin2hex(random_bytes(32));
 adminMarkStudentSessionActive($db, (int) ($student['id'] ?? 0), $sessionToken);
+adminLogStudentLogin($db, $student);
 
 Session::regenerate();
 Session::set('student_login_failed_attempts', 0);

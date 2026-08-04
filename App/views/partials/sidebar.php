@@ -5,6 +5,7 @@ $navLinks = [
     ['href' => '/teacher/add-question', 'label' => 'Set Questions', 'hint' => 'Create Bank', 'icon' => 'fa-plus-square-o'],
     ['href' => '/teacher/check-question', 'label' => 'Check Question', 'hint' => 'Review & Edit', 'icon' => 'fa-search'],
     ['href' => '/teacher/performance', 'label' => 'Performance', 'hint' => 'Exam Records', 'icon' => 'fa-line-chart'],
+    ['href' => '/teacher/feedback', 'label' => 'Feedback', 'hint' => 'Review Responses', 'icon' => 'fa-commenting-o'],
     ['href' => '/teacher/notify-admin', 'label' => 'Messages', 'hint' => 'Chat with Admin', 'icon' => 'fa-envelope'],
     ['href' => '/teacher/profile', 'label' => 'Profile', 'hint' => 'Account Details', 'icon' => 'fa-user-circle-o'],
 ];

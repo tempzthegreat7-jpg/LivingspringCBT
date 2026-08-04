@@ -17,11 +17,11 @@ if (!$quiz || empty($quiz['questions'])) {
 $questions = $quiz['questions'];
 $currentIndex = $quiz['current_index'] ?? 0;
 $answers = $quiz['answers'] ?? [];
-$security = normalizeQuizSecurityState($quiz['security'] ?? []);
+$flags = $quiz['flags'] ?? [];
+$questionTimes = $quiz['question_times'] ?? [];
 $total = $quiz['total'] ?? count($questions);
 $endsAt = (int) ($quiz['ends_at'] ?? 0);
 $durationSeconds = (int) ($quiz['duration_seconds'] ?? 0);
-$isTimedOut = $endsAt > 0 && time() >= $endsAt;
 $student = Session::get('student') ?? [];
 $exam = Session::get('subjects') ?? [];
 $studentName = (string) ($student['name'] ?? 'Unknown Student');
@@ -35,37 +35,15 @@ $activeExamSession = $examTask === 'exam'
     ? studentFindActiveExamSession($db, $studentName, $studentClass)
     : null;
 
-if (!empty($security['requires_admin_unlock']) && (int) ($_POST['time_up'] ?? 0) !== 1) {
-    $lockedQuestion = $questions[$currentIndex] ?? $questions[0] ?? null;
-
-    if (!$lockedQuestion) {
-        redirect('/student/question-set');
-    }
-
-    loadView('/questions', [
-        'subject' => $examSubject,
-        'term' => $examTerm,
-        'assessment_task' => $examTask,
-        'assessment_header' => $examHeader,
-        'number' => $currentIndex + 1,
-        'question' => $lockedQuestion['question'],
-        'image_path' => $lockedQuestion['image_path'] ?? null,
-        'choice1' => $lockedQuestion['choice1'],
-        'choice2' => $lockedQuestion['choice2'],
-        'choice3' => $lockedQuestion['choice3'],
-        'choice4' => $lockedQuestion['choice4'],
-        'selected_choice' => $answers[$currentIndex] ?? '',
-        'security_state' => $security,
-        'answered_map' => buildAnsweredMap($questions, $answers),
-        'current_index_zero' => $currentIndex,
-        'current' => $currentIndex + 1,
-        'total' => $total,
-        'is_last' => ($currentIndex + 1) >= $total,
-        'exam_ends_at' => $endsAt,
-        'exam_duration_seconds' => $durationSeconds
-    ]);
-    return;
+$endsAtOverride = (int) ($_POST['ends_at_override'] ?? 0);
+if ($endsAtOverride > 0 && $endsAtOverride !== $endsAt) {
+    $endsAt = $endsAtOverride;
+    $quiz['ends_at'] = $endsAt;
+    Session::set('quiz', $quiz);
 }
+
+$globalTimerPause = $examTask === 'exam' ? studentGetGlobalTimerPause($db) : '0';
+$isTimedOut = $endsAt > 0 && time() >= $endsAt && $globalTimerPause !== '1';
 
 // Recalculate score from saved answers any time student moves.
 $calculateScore = function ($allQuestions, $allAnswers) {
@@ -101,19 +79,28 @@ $storeAttempt = function ($finalQuiz, $finalScore, $didTimeOut) use ($db) {
 
     $student = Session::get('student');
     $exam = Session::get('subjects');
+    $taskType = normalizeAssessmentTask((string) ($exam['task'] ?? 'exam'));
+
+    if ($taskType === 'exam') {
+        return $finalQuiz;
+    }
 
     $db->query(
-        'INSERT INTO exam_attempts (student_name, student_class, subject, task_type, score, total_questions, time_spent_seconds, timed_out, completed_at)
-         VALUES (:student_name, :student_class, :subject, :task_type, :score, :total_questions, :time_spent_seconds, :timed_out, NOW())',
+        'INSERT INTO exam_attempts (student_name, student_class, assessment_id, subject, task_type, term_key, header_text, score, total_questions, time_spent_seconds, timed_out, reviewed_before_submit, completed_at)
+         VALUES (:student_name, :student_class, :assessment_id, :subject, :task_type, :term_key, :header_text, :score, :total_questions, :time_spent_seconds, :timed_out, :reviewed_before_submit, NOW())',
         [
             'student_name' => (string) ($student['name'] ?? 'Unknown Student'),
             'student_class' => (string) ($student['class'] ?? 'SS3'),
+            'assessment_id' => (int) ($exam['assessment_id'] ?? 0),
             'subject' => strtolower((string) ($exam['subject'] ?? 'unknown')),
-            'task_type' => normalizeAssessmentTask((string) ($exam['task'] ?? 'exam')),
+            'task_type' => $taskType,
+            'term_key' => normalizeExamTerm((string) ($exam['term'] ?? 'first_term')),
+            'header_text' => (string) ($exam['header'] ?? ''),
             'score' => (int) $finalScore,
             'total_questions' => (int) ($finalQuiz['total'] ?? 0),
             'time_spent_seconds' => (int) $elapsed,
-            'timed_out' => $didTimeOut ? 1 : 0
+            'timed_out' => $didTimeOut ? 1 : 0,
+            'reviewed_before_submit' => !empty($finalQuiz['reviewed_before_submit']) ? 1 : 0
         ]
     );
 
@@ -125,10 +112,27 @@ $selected = $_POST['choice'] ?? '';
 $timeUpFlag = (int) ($_POST['time_up'] ?? 0) === 1;
 $nav = $_POST['nav'] ?? 'next';
 $jumpIndex = isset($_POST['jump_index']) ? (int) $_POST['jump_index'] : null;
+$flagCurrent = array_key_exists('flag_current', $_POST) ? (int) $_POST['flag_current'] === 1 : null;
+$reviewedBeforeSubmit = !empty($_POST['reviewed_before_submit']) || !empty($quiz['reviewed_before_submit']);
+$questionTimesPayload = json_decode((string) ($_POST['question_times_json'] ?? '[]'), true);
 
 if ($selected !== '') {
     // Save current answer before moving next/previous.
     $answers[$currentIndex] = trim($selected);
+}
+
+if ($flagCurrent !== null) {
+    $flags[$currentIndex] = $flagCurrent;
+}
+
+if (is_array($questionTimesPayload)) {
+    foreach ($questionTimesPayload as $index => $seconds) {
+        $safeIndex = (int) $index;
+        if ($safeIndex < 0) {
+            continue;
+        }
+        $questionTimes[$safeIndex] = max(0, (int) $seconds);
+    }
 }
 
 $score = $calculateScore($questions, $answers);
@@ -139,13 +143,17 @@ if ($isTimedOut || $timeUpFlag) {
         'questions' => $questions,
         'current_index' => $total,
         'answers' => $answers,
-        'security' => $security,
+        'flags' => $flags,
+        'question_times' => $questionTimes,
         'score' => $score,
         'total' => $total,
         'started_at' => $quiz['started_at'] ?? null,
         'ends_at' => $endsAt,
         'duration_seconds' => $durationSeconds,
-        'attempt_logged' => (bool) ($quiz['attempt_logged'] ?? false)
+        'attempt_logged' => (bool) ($quiz['attempt_logged'] ?? false),
+        'reviewed_before_submit' => $reviewedBeforeSubmit,
+        'last_autosaved_at' => date('Y-m-d H:i:s'),
+        'resume_count' => (int) ($quiz['resume_count'] ?? 0)
     ];
 
     $finalQuiz = $storeAttempt($finalQuiz, $score, true);
@@ -162,18 +170,34 @@ if ($isTimedOut || $timeUpFlag) {
             'header_text' => $examHeader,
             'questions_json' => json_encode($questions, JSON_UNESCAPED_SLASHES),
             'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
-            'security_json' => json_encode($security, JSON_UNESCAPED_SLASHES),
             'started_at' => (int) ($quiz['started_at'] ?? time()),
             'ends_at' => $endsAt,
             'duration_seconds' => $durationSeconds,
             'id' => 0
         ];
         $sessionRow['answers_json'] = json_encode($answers, JSON_UNESCAPED_SLASHES);
+        $sessionRow['flags_json'] = json_encode($flags, JSON_UNESCAPED_SLASHES);
+        $sessionRow['question_times_json'] = json_encode($questionTimes, JSON_UNESCAPED_SLASHES);
         $sessionRow['current_index'] = $total;
         $sessionRow['score'] = $score;
         $sessionRow['total_questions'] = $total;
         $sessionRow['attempt_logged'] = (bool) ($finalQuiz['attempt_logged'] ?? false);
+        $sessionRow['reviewed_before_submit'] = $reviewedBeforeSubmit;
         studentFinalizeExamSession($db, $sessionRow, true);
+        $finalQuiz['attempt_logged'] = true;
+        $finalQuiz['reviewed_before_submit'] = $reviewedBeforeSubmit;
+        Session::set('quiz', $finalQuiz);
+        studentLogExamSessionEvent($db, [
+            'session_id' => (int) ($sessionRow['id'] ?? 0),
+            'student_name' => $studentName,
+            'student_class' => $studentClass,
+            'assessment_id' => $examAssessmentId,
+            'subject' => $examSubject,
+            'task_type' => $examTask,
+            'event_key' => 'timed_out_submit',
+            'summary' => 'Exam submitted automatically because time expired.',
+            'current_index' => $total
+        ]);
     }
 
     loadView('/result', [
@@ -204,13 +228,17 @@ $updatedQuiz = [
     'questions' => $questions,
     'current_index' => $currentIndex,
     'answers' => $answers,
-    'security' => $security,
+    'flags' => $flags,
+    'question_times' => $questionTimes,
     'score' => $score,
     'total' => $total,
     'started_at' => $quiz['started_at'] ?? null,
     'ends_at' => $endsAt,
     'duration_seconds' => $durationSeconds,
-    'attempt_logged' => (bool) ($quiz['attempt_logged'] ?? false)
+    'attempt_logged' => (bool) ($quiz['attempt_logged'] ?? false),
+    'reviewed_before_submit' => $reviewedBeforeSubmit,
+    'last_autosaved_at' => date('Y-m-d H:i:s'),
+    'resume_count' => (int) ($quiz['resume_count'] ?? 0)
 ];
 Session::set('quiz', $updatedQuiz);
 
@@ -227,14 +255,19 @@ if ($examTask === 'exam') {
         'header_text' => $examHeader,
         'questions' => $questions,
         'answers' => $answers,
-        'security' => $security,
+        'flags' => $flags,
+        'question_times' => $questionTimes,
         'current_index' => $currentIndex,
         'score' => $score,
         'total_questions' => $total,
         'started_at' => (int) ($quiz['started_at'] ?? time()),
         'ends_at' => $endsAt,
         'duration_seconds' => $durationSeconds,
+        'last_autosaved_at' => date('Y-m-d H:i:s'),
+        'last_activity_at' => date('Y-m-d H:i:s'),
         'attempt_logged' => (bool) ($quiz['attempt_logged'] ?? false),
+        'reviewed_before_submit' => $reviewedBeforeSubmit,
+        'resume_count' => (int) ($quiz['resume_count'] ?? 0),
         'status' => 'in_progress'
     ]);
 }
@@ -256,19 +289,39 @@ if ($currentIndex >= $total) {
             'header_text' => $examHeader,
             'questions_json' => json_encode($questions, JSON_UNESCAPED_SLASHES),
             'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
-            'security_json' => json_encode($security, JSON_UNESCAPED_SLASHES),
             'started_at' => (int) ($quiz['started_at'] ?? time()),
             'ends_at' => $endsAt,
             'duration_seconds' => $durationSeconds,
             'id' => 0
         ];
         $sessionRow['answers_json'] = json_encode($answers, JSON_UNESCAPED_SLASHES);
+        $sessionRow['flags_json'] = json_encode($flags, JSON_UNESCAPED_SLASHES);
+        $sessionRow['question_times_json'] = json_encode($questionTimes, JSON_UNESCAPED_SLASHES);
         $sessionRow['current_index'] = $total;
         $sessionRow['score'] = $score;
         $sessionRow['total_questions'] = $total;
         $sessionRow['attempt_logged'] = (bool) ($finalQuiz['attempt_logged'] ?? false);
+        $sessionRow['reviewed_before_submit'] = $reviewedBeforeSubmit;
         $sessionRow['id'] = $savedExamSessionId;
         studentFinalizeExamSession($db, $sessionRow, false);
+        $finalQuiz['attempt_logged'] = true;
+        $finalQuiz['reviewed_before_submit'] = $reviewedBeforeSubmit;
+        Session::set('quiz', $finalQuiz);
+        studentLogExamSessionEvent($db, [
+            'session_id' => (int) ($sessionRow['id'] ?? 0),
+            'student_name' => $studentName,
+            'student_class' => $studentClass,
+            'assessment_id' => $examAssessmentId,
+            'subject' => $examSubject,
+            'task_type' => $examTask,
+            'event_key' => 'submitted',
+            'summary' => 'Student submitted the exam.',
+            'current_index' => $total,
+            'payload' => [
+                'reviewed_before_submit' => $reviewedBeforeSubmit,
+                'flagged_count' => count(array_filter($flags))
+            ]
+        ]);
     }
 
     loadView('/result', [
@@ -294,12 +347,14 @@ loadView('/questions', [
     'choice3' => $nextQuestion['choice3'],
     'choice4' => $nextQuestion['choice4'],
     'selected_choice' => $answers[$currentIndex] ?? '',
-    'security_state' => $security,
-    'answered_map' => buildAnsweredMap($questions, $answers),
+    'answered_map' => buildAnsweredMap($questions, $answers, $flags),
     'current_index_zero' => $currentIndex,
     'current' => $currentIndex + 1,
     'total' => $total,
     'is_last' => ($currentIndex + 1) >= $total,
     'exam_ends_at' => $endsAt,
-    'exam_duration_seconds' => $durationSeconds
+    'exam_duration_seconds' => $durationSeconds,
+    'flagged_questions' => $flags,
+    'last_autosaved_at' => (string) ($updatedQuiz['last_autosaved_at'] ?? ''),
+    'resume_count' => (int) ($updatedQuiz['resume_count'] ?? 0)
 ]);

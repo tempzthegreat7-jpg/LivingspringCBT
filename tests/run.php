@@ -90,15 +90,6 @@ $run('randomizeQuestionSet preserves all questions', function () use ($assertSam
     $assertTrue($originalTexts === $shuffledTexts, 'Randomized set should keep the same questions');
 });
 
-$run('normalizeQuizSecurityState fills expected defaults', function () use ($assertSame, $assertTrue) {
-    $state = normalizeQuizSecurityState(['violation_count' => '2', 'requires_admin_unlock' => 1]);
-
-    $assertSame(2, $state['violation_count'], 'Violation count should be normalized to integer');
-    $assertTrue($state['requires_admin_unlock'] === true, 'Lock flag should be normalized to boolean true');
-    $assertSame(0, $state['locked_at'], 'Missing lock time should default to zero');
-    $assertSame('', $state['last_event'], 'Missing event key should default to empty string');
-});
-
 $run('Validation::string respects min and max', function () use ($assertSame) {
     $assertSame(true, Validation::string('Teacher', 2, 10), 'String should pass bounds');
     $assertSame(false, Validation::string('A', 2, 10), 'String should fail min bound');
@@ -126,6 +117,16 @@ $run('safeTableName rejects empty string', function () use ($assertTrue) {
         $threw = true;
     }
     $assertTrue($threw, 'Empty string should throw InvalidArgumentException');
+});
+
+$run('normalizeFeedbackStatus accepts supported values', function () use ($assertSame) {
+    $assertSame('approved', normalizeFeedbackStatus('Approved'), 'Approved values should normalize');
+    $assertSame('pending_review', normalizeFeedbackStatus('unknown-status'), 'Unknown values should fall back to pending review');
+});
+
+$run('feedbackStatusLabel formats readable statuses', function () use ($assertSame) {
+    $assertSame('Approved', feedbackStatusLabel('approved'), 'Approved status should be human readable');
+    $assertSame('Pending Review', feedbackStatusLabel(null), 'Missing status should default to pending review');
 });
 echo "Passed: {$testsPassed}" . PHP_EOL;
 echo "Failed: {$testsFailed}" . PHP_EOL;

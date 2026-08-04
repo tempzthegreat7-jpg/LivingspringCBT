@@ -4,8 +4,10 @@ $studentNavLinks = [
     ['href' => '/student/dashboard', 'label' => 'Dashboard', 'hint' => 'Overview', 'icon' => 'fa-th-large'],
     ['href' => '/student/question-set', 'label' => 'Start Task', 'hint' => 'Pick Subject', 'icon' => 'fa-play-circle-o'],
     ['href' => '/student/results', 'label' => 'Results', 'hint' => 'By Date', 'icon' => 'fa-line-chart'],
+    ['href' => '/student/login-log', 'label' => 'Login Log', 'hint' => 'Protected View', 'icon' => 'fa-lock'],
     ['href' => '/student/resume', 'label' => 'Resume', 'hint' => 'Continue Task', 'icon' => 'fa-history'],
     ['href' => '/student/corrections', 'label' => 'Correction', 'hint' => 'Failed/Incomplete', 'icon' => 'fa-check-square-o'],
+    ['href' => '/student/feedback', 'label' => 'Feedback', 'hint' => 'Share Thoughts', 'icon' => 'fa-commenting-o'],
 ];
 ?>
 <aside>

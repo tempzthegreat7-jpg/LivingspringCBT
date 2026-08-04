@@ -73,7 +73,6 @@ if (empty($questions)) {
 
 $startedAt = time();
 $endsAt = $durationSeconds > 0 ? ($startedAt + $durationSeconds) : 0;
-$security = normalizeQuizSecurityState();
 $term = $task === 'exam'
     ? normalizeExamTerm($configRow['term_key'] ?? 'first_term')
     : '';
@@ -90,13 +89,24 @@ if ($task === 'exam') {
         $quiz = Session::get('quiz') ?? [];
         $resumeQuestions = is_array($quiz['questions'] ?? null) ? $quiz['questions'] : [];
         $resumeAnswers = is_array($quiz['answers'] ?? null) ? $quiz['answers'] : [];
-        $resumeSecurity = normalizeQuizSecurityState($quiz['security'] ?? []);
+        $resumeFlags = is_array($quiz['flags'] ?? null) ? $quiz['flags'] : [];
         $resumeTotal = (int) ($quiz['total'] ?? count($resumeQuestions));
         $resumeIndex = max(0, (int) ($quiz['current_index'] ?? 0));
         $resumeQuestion = $resumeQuestions[$resumeIndex] ?? null;
         $resumeSubjects = Session::get('subjects') ?? [];
 
         if ($resumeQuestion) {
+            studentLogExamSessionEvent($db, [
+                'session_id' => (int) ($activeExamSession['id'] ?? 0),
+                'student_name' => $studentName,
+                'student_class' => $studentClass,
+                'assessment_id' => $assessmentId,
+                'subject' => $subject,
+                'task_type' => $task,
+                'event_key' => 'resume_loaded',
+                'summary' => 'Student reopened an in-progress exam from the start flow.',
+                'current_index' => $resumeIndex
+            ]);
             loadView('/questions', [
                 'subject' => $resumeSubjects['subject'] ?? $subject,
                 'term' => $resumeSubjects['term'] ?? $term,
@@ -110,14 +120,16 @@ if ($task === 'exam') {
                 'choice3' => $resumeQuestion['choice3'] ?? '',
                 'choice4' => $resumeQuestion['choice4'] ?? '',
                 'selected_choice' => $resumeAnswers[$resumeIndex] ?? '',
-                'security_state' => $resumeSecurity,
-                'answered_map' => buildAnsweredMap($resumeQuestions, $resumeAnswers),
+                'answered_map' => buildAnsweredMap($resumeQuestions, $resumeAnswers, $resumeFlags),
                 'current_index_zero' => $resumeIndex,
                 'current' => $resumeIndex + 1,
                 'total' => $resumeTotal,
                 'is_last' => ($resumeIndex + 1) >= $resumeTotal,
                 'exam_ends_at' => (int) ($quiz['ends_at'] ?? 0),
-                'exam_duration_seconds' => (int) ($quiz['duration_seconds'] ?? 0)
+                'exam_duration_seconds' => (int) ($quiz['duration_seconds'] ?? 0),
+                'flagged_questions' => $resumeFlags,
+                'last_autosaved_at' => (string) ($quiz['last_autosaved_at'] ?? ''),
+                'resume_count' => (int) ($quiz['resume_count'] ?? 0)
             ]);
             return;
         }
@@ -138,17 +150,21 @@ Session::set('quiz', [
     'questions' => $questions,
     'current_index' => 0,
     'answers' => [],
-    'security' => $security,
+    'flags' => [],
+    'question_times' => [],
     'score' => 0,
     'total' => count($questions),
     'started_at' => $startedAt,
     'ends_at' => $endsAt,
     'duration_seconds' => $durationSeconds,
-    'attempt_logged' => false
+    'attempt_logged' => false,
+    'reviewed_before_submit' => false,
+    'last_autosaved_at' => '',
+    'resume_count' => 0
 ]);
 
 if ($task === 'exam') {
-    studentSaveExamSession($db, [
+    $sessionId = studentSaveExamSession($db, [
         'student_name' => $studentName,
         'student_class' => (string) (Session::get('student')['class'] ?? $studentClass),
         'assessment_id' => $assessmentId,
@@ -158,15 +174,28 @@ if ($task === 'exam') {
         'header_text' => $headerText,
         'questions' => $questions,
         'answers' => [],
-        'security' => $security,
+        'flags' => [],
+        'question_times' => [],
         'current_index' => 0,
         'score' => 0,
         'total_questions' => count($questions),
         'started_at' => $startedAt,
         'ends_at' => $endsAt,
         'duration_seconds' => $durationSeconds,
+        'last_activity_at' => date('Y-m-d H:i:s'),
         'attempt_logged' => false,
         'status' => 'in_progress'
+    ]);
+    studentLogExamSessionEvent($db, [
+        'session_id' => $sessionId,
+        'student_name' => $studentName,
+        'student_class' => $studentClass,
+        'assessment_id' => $assessmentId,
+        'subject' => $subject,
+        'task_type' => $task,
+        'event_key' => 'exam_started',
+        'summary' => 'Student started an exam.',
+        'current_index' => 0
     ]);
 }
 
@@ -183,12 +212,14 @@ loadView('/questions', [
     'choice3' => $questions[0]['choice3'],
     'choice4' => $questions[0]['choice4'],
     'selected_choice' => '',
-    'security_state' => $security,
-    'answered_map' => buildAnsweredMap($questions, []),
+    'answered_map' => buildAnsweredMap($questions, [], []),
     'current_index_zero' => 0,
     'current' => 1,
     'total' => count($questions),
     'is_last' => count($questions) === 1,
     'exam_ends_at' => $endsAt,
-    'exam_duration_seconds' => $durationSeconds
+    'exam_duration_seconds' => $durationSeconds,
+    'flagged_questions' => [],
+    'last_autosaved_at' => '',
+    'resume_count' => 0
 ]);

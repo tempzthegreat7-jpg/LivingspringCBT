@@ -8,6 +8,7 @@
         $studentClass = (string) (($student['class'] ?? '') ?: 'SS3');
         $resumeCurrent = (int) ($resumeProgress['current'] ?? 1);
         $resumeTotal = (int) ($resumeProgress['total'] ?? 0);
+        $resumeMeta = (array) ($resumeMeta ?? []);
         $announcementCount = count($notifications ?? []);
         ?>
 
@@ -44,6 +45,8 @@
                     <p class="main-text">Start / Resume</p>
                     <?php if ($resumeAvailable): ?>
                         <p class="text"><a href="/student/resume">Resume current assessment</a></p>
+                        <p class="text">Last autosave: <?= htmlspecialchars((string) (($resumeMeta['autosaved_at'] ?? '') ?: 'Waiting for first autosave'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="text">Subject: <?= htmlspecialchars((string) (($resumeMeta['subject'] ?? '') ?: 'Assessment'), ENT_QUOTES, 'UTF-8') ?> | Resumed <?= (int) ($resumeMeta['resume_count'] ?? 0) ?> time(s)</p>
                         <p class="text"><a href="/student/question-set?fresh=1">Start fresh assessment</a></p>
                     <?php else: ?>
                         <p class="text"><a href="/student/question-set">Start new assessment</a></p>
@@ -106,4 +109,9 @@
         </div>
     </main>
 </section>
+<script>
+    window.__cbtControlRole = 'student';
+    window.__cbtControlIdentifier = '<?= htmlspecialchars((string) (Session::get('student')['name'] ?? '') . '|' . (string) (Session::get('student')['class'] ?? 'SS3'), ENT_QUOTES, 'UTF-8') ?>';
+</script>
+<script src="/control-stream.js" defer></script>
 <?php loadPartial('end') ?>

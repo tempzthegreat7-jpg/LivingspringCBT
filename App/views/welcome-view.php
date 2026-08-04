@@ -14,13 +14,13 @@ loadPartial('student-head')
             <button type="button" class="welcome-ghost-btn" id="openCreditsOverlay">Project Credits</button>
         </div>
         <details class="welcome-release-note" open>
-            <summary>What&apos;s New in v2.5.0</summary>
+            <summary>What&apos;s New in v2.6.0</summary>
             <ul>
-                <li>Student exams can now resume after browser close or reconnect.</li>
-                <li>Student accounts now use first-session-wins protection.</li>
-                <li>Admins can lock entire classes out of the student dashboard.</li>
-                <li>Teachers can move a question bank to the correct class without rebuilding it.</li>
-                <li>Student timer behavior and task loading have been tightened for hosted use.</li>
+                <li>Better exam flow with review, flagging, autosave, and safer submission.</li>
+                <li>Smarter calculator with scientific mode, memory, history, and keyboard input.</li>
+                <li>New student login tracking for both admins and students.</li>
+                <li>New admin exam insights by subject and class, including scores and time taken.</li>
+                <li>Fixed the repeated no-active-exams popup across the student panel.</li>
             </ul>
         </details>
     </div>
@@ -46,7 +46,7 @@ loadPartial('student-head')
             </div>
         </div>
         <p class="credit-version-label">Application Version</p>
-        <p class="credit-version">Version 2.5.0</p>
+        <p class="credit-version">Version 2.6.0</p>
     </div>
 </div>
 

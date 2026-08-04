@@ -32,6 +32,9 @@ if ($persistedExamSession && !studentExamSessionIsResumable($persistedExamSessio
 
 $resumeCurrentValue = $quizCurrentIndex;
 $resumeTotalValue = $quizTotal;
+$resumeSubjectLabel = ucwords(str_replace('_', ' ', (string) ((Session::get('subjects')['subject'] ?? '') ?: '')));
+$resumeAutosavedAt = (string) ($quiz['last_autosaved_at'] ?? '');
+$resumeCount = (int) ($quiz['resume_count'] ?? 0);
 if (!$resumeAvailable && $persistedExamSession) {
     $persistedQuestions = studentExamSessionDecodeJson($persistedExamSession['questions_json'] ?? '[]', []);
     $persistedTotal = max(0, (int) ($persistedExamSession['total_questions'] ?? count($persistedQuestions)));
@@ -41,6 +44,9 @@ if (!$resumeAvailable && $persistedExamSession) {
     if ($resumeAvailable) {
         $resumeCurrentValue = $persistedIndex;
         $resumeTotalValue = $persistedTotal;
+        $resumeSubjectLabel = ucwords(str_replace('_', ' ', (string) ($persistedExamSession['subject'] ?? '')));
+        $resumeAutosavedAt = (string) ($persistedExamSession['last_autosaved_at'] ?? '');
+        $resumeCount = (int) ($persistedExamSession['resume_count'] ?? 0);
     }
 }
 
@@ -59,6 +65,8 @@ $attemptRows = $subjectsDb->query(
 $recentAttempts = array_slice($attemptRows, 0, 10);
 
 ensureAssessmentConfigsSchema($subjectsDb);
+ensureExamActivationSchema($subjectsDb);
+$activeExamSubjects = examActiveSubjectsForClass($subjectsDb, $studentClass);
 $availableAssessmentRows = $subjectsDb->query(
     'SELECT id, subject, task_type, student_class, table_name
      FROM assessment_configs
@@ -85,10 +93,16 @@ foreach ($availableAssessmentRows as $cfg) {
         continue;
     }
 
+    $subjectKey = strtolower(trim((string) ($cfg['subject'] ?? '')));
+    $taskKey = normalizeAssessmentTask((string) ($cfg['task_type'] ?? 'exam'));
+    if ($taskKey === 'exam' && !in_array($subjectKey, $activeExamSubjects, true)) {
+        continue;
+    }
+
     $availableTaskRows[] = [
         'id' => (int) ($cfg['id'] ?? 0),
-        'subject' => strtolower(trim((string) ($cfg['subject'] ?? ''))),
-        'task' => normalizeAssessmentTask((string) ($cfg['task_type'] ?? 'exam'))
+        'subject' => $subjectKey,
+        'task' => $taskKey
     ];
 }
 
@@ -134,6 +148,11 @@ loadView('student-dashboard', [
     'resumeProgress' => [
         'current' => $resumeAvailable ? ($resumeCurrentValue + 1) : 1,
         'total' => $resumeTotalValue
+    ],
+    'resumeMeta' => [
+        'subject' => $resumeSubjectLabel,
+        'autosaved_at' => $resumeAutosavedAt,
+        'resume_count' => $resumeCount
     ],
     'completedQuizAvailable' => $completedQuizAvailable,
     'recentAttempts' => $recentAttempts,

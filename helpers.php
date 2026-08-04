@@ -236,6 +236,48 @@ function normalizeAssessmentTask($task, $default = 'exam')
 }
 
 /**
+ * Normalize feedback review status values.
+ *
+ * @param string|null $status
+ * @param string $default
+ * @return string
+ */
+function normalizeFeedbackStatus($status, $default = 'pending_review')
+{
+    $value = strtolower(trim((string) $status));
+    $allowed = [
+        'pending_review' => 'pending_review',
+        'approved' => 'approved',
+        'rejected' => 'rejected',
+        'archived' => 'archived'
+    ];
+
+    if (array_key_exists($value, $allowed)) {
+        return $allowed[$value];
+    }
+
+    return $default;
+}
+
+/**
+ * Return the label for a feedback review status.
+ *
+ * @param string|null $status
+ * @return string
+ */
+function feedbackStatusLabel($status)
+{
+    $map = [
+        'pending_review' => 'Pending Review',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'archived' => 'Archived'
+    ];
+
+    return $map[normalizeFeedbackStatus($status)] ?? 'Pending Review';
+}
+
+/**
  * Determine whether a task requires a free-text header
  *
  * @param string|null $task
@@ -399,6 +441,26 @@ function ensureExamAttemptsSchema($db)
     if (!$hasTaskType) {
         $db->query('ALTER TABLE exam_attempts ADD COLUMN task_type VARCHAR(20) NOT NULL DEFAULT "exam" AFTER subject');
     }
+
+    $knownColumns = [];
+    foreach ($attemptColumns as $attemptColumn) {
+        $knownColumns[strtolower((string) ($attemptColumn['Field'] ?? ''))] = true;
+    }
+
+    $requiredColumns = [
+        'assessment_id' => 'ALTER TABLE exam_attempts ADD COLUMN assessment_id INT(11) NOT NULL DEFAULT 0 AFTER student_class',
+        'term_key' => 'ALTER TABLE exam_attempts ADD COLUMN term_key VARCHAR(20) NULL AFTER task_type',
+        'header_text' => 'ALTER TABLE exam_attempts ADD COLUMN header_text VARCHAR(160) NULL AFTER term_key',
+        'question_breakdown_json' => 'ALTER TABLE exam_attempts ADD COLUMN question_breakdown_json LONGTEXT NULL AFTER timed_out',
+        'flags_json' => 'ALTER TABLE exam_attempts ADD COLUMN flags_json LONGTEXT NULL AFTER question_breakdown_json',
+        'reviewed_before_submit' => 'ALTER TABLE exam_attempts ADD COLUMN reviewed_before_submit TINYINT(1) NOT NULL DEFAULT 0 AFTER flags_json'
+    ];
+
+    foreach ($requiredColumns as $columnName => $query) {
+        if (!isset($knownColumns[$columnName])) {
+            $db->query($query);
+        }
+    }
 }
 
 /**
@@ -421,7 +483,6 @@ function ensureStudentExamSessionsSchema($db)
             header_text VARCHAR(160) NULL,
             questions_json LONGTEXT NOT NULL,
             answers_json LONGTEXT NOT NULL,
-            security_json LONGTEXT NULL,
             current_index INT(11) NOT NULL DEFAULT 0,
             score INT(11) NOT NULL DEFAULT 0,
             total_questions INT(11) NOT NULL DEFAULT 0,
@@ -439,18 +500,82 @@ function ensureStudentExamSessionsSchema($db)
     );
 
     $columns = $db->query('SHOW COLUMNS FROM student_exam_sessions')->fetchAll();
-    $hasSecurityJson = false;
-
+    $knownColumns = [];
     foreach ($columns as $column) {
-        if (strtolower((string) ($column['Field'] ?? '')) === 'security_json') {
-            $hasSecurityJson = true;
-            break;
+        $knownColumns[strtolower((string) ($column['Field'] ?? ''))] = true;
+    }
+
+    $requiredColumns = [
+        'flags_json' => 'ALTER TABLE student_exam_sessions ADD COLUMN flags_json LONGTEXT NULL AFTER answers_json',
+        'question_times_json' => 'ALTER TABLE student_exam_sessions ADD COLUMN question_times_json LONGTEXT NULL AFTER flags_json',
+        'last_autosaved_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_autosaved_at DATETIME NULL AFTER duration_seconds',
+        'last_activity_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_activity_at DATETIME NULL AFTER last_autosaved_at',
+        'reviewed_before_submit' => 'ALTER TABLE student_exam_sessions ADD COLUMN reviewed_before_submit TINYINT(1) NOT NULL DEFAULT 0 AFTER attempt_logged',
+        'resume_count' => 'ALTER TABLE student_exam_sessions ADD COLUMN resume_count INT(11) NOT NULL DEFAULT 0 AFTER reviewed_before_submit',
+        'last_ip_address' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_ip_address VARCHAR(64) NULL AFTER resume_count',
+        'last_user_agent' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_user_agent VARCHAR(255) NULL AFTER last_ip_address',
+        'timer_paused' => 'ALTER TABLE student_exam_sessions ADD COLUMN timer_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER duration_seconds',
+        'time_bonus_seconds' => 'ALTER TABLE student_exam_sessions ADD COLUMN time_bonus_seconds INT(11) NOT NULL DEFAULT 0 AFTER timer_paused',
+        'admin_paused_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN admin_paused_at DATETIME NULL AFTER time_bonus_seconds',
+        'last_control_sync_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_control_sync_at DATETIME NULL AFTER admin_paused_at'
+    ];
+
+    foreach ($requiredColumns as $columnName => $query) {
+        if (!isset($knownColumns[$columnName])) {
+            $db->query($query);
         }
     }
+}
 
-    if (!$hasSecurityJson) {
-        $db->query('ALTER TABLE student_exam_sessions ADD COLUMN security_json LONGTEXT NULL AFTER answers_json');
-    }
+function ensureExamSessionEventsSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS exam_session_events (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            session_id INT(11) NOT NULL DEFAULT 0,
+            student_name VARCHAR(120) NOT NULL,
+            student_class VARCHAR(20) NOT NULL,
+            assessment_id INT(11) NOT NULL DEFAULT 0,
+            subject VARCHAR(80) NOT NULL,
+            task_type VARCHAR(20) NOT NULL DEFAULT "exam",
+            event_key VARCHAR(40) NOT NULL,
+            summary VARCHAR(255) NOT NULL,
+            current_index INT(11) NOT NULL DEFAULT 0,
+            payload_json LONGTEXT NULL,
+            ip_address VARCHAR(64) NULL,
+            user_agent VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_exam_session_events_session (session_id, created_at),
+            INDEX idx_exam_session_events_assessment (assessment_id, subject, created_at)
+        )'
+    );
+}
+
+function ensureExamQuestionAnalyticsSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS exam_question_analytics (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            attempt_id INT(11) NOT NULL DEFAULT 0,
+            assessment_id INT(11) NOT NULL DEFAULT 0,
+            student_name VARCHAR(120) NOT NULL,
+            student_class VARCHAR(20) NOT NULL,
+            subject VARCHAR(80) NOT NULL,
+            task_type VARCHAR(20) NOT NULL DEFAULT "exam",
+            question_hash VARCHAR(64) NOT NULL,
+            question_number INT(11) NOT NULL DEFAULT 0,
+            question_text TEXT NOT NULL,
+            selected_answer TEXT NULL,
+            correct_answer TEXT NULL,
+            is_correct TINYINT(1) NOT NULL DEFAULT 0,
+            was_answered TINYINT(1) NOT NULL DEFAULT 0,
+            was_flagged TINYINT(1) NOT NULL DEFAULT 0,
+            time_spent_seconds INT(11) NOT NULL DEFAULT 0,
+            completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_exam_question_analytics_assessment (assessment_id, subject, student_class),
+            INDEX idx_exam_question_analytics_question (question_hash)
+        )'
+    );
 }
 
 /**
@@ -487,25 +612,6 @@ function studentExamSessionCalculateScore(array $questions, array $answers)
     }
 
     return $score;
-}
-
-/**
- * Normalize quiz security state payload
- *
- * @param mixed $state
- * @return array
- */
-function normalizeQuizSecurityState($state = [])
-{
-    $source = is_array($state) ? $state : [];
-
-    return [
-        'violation_count' => max(0, (int) ($source['violation_count'] ?? 0)),
-        'requires_admin_unlock' => !empty($source['requires_admin_unlock']),
-        'locked_at' => max(0, (int) ($source['locked_at'] ?? 0)),
-        'last_event' => trim((string) ($source['last_event'] ?? '')),
-        'last_event_label' => trim((string) ($source['last_event_label'] ?? ''))
-    ];
 }
 
 /**
@@ -601,7 +707,6 @@ function studentRestoreExamSessionToPhpSession(array $sessionRow)
 {
     $questions = studentExamSessionDecodeJson($sessionRow['questions_json'] ?? '[]', []);
     $answers = studentExamSessionDecodeJson($sessionRow['answers_json'] ?? '[]', []);
-    $security = normalizeQuizSecurityState(studentExamSessionDecodeJson($sessionRow['security_json'] ?? '[]', []));
     $total = max(0, (int) ($sessionRow['total_questions'] ?? count($questions)));
     $currentIndex = (int) ($sessionRow['current_index'] ?? 0);
 
@@ -622,13 +727,20 @@ function studentRestoreExamSessionToPhpSession(array $sessionRow)
         'questions' => $questions,
         'current_index' => $currentIndex,
         'answers' => $answers,
-        'security' => $security,
+        'flags' => studentExamSessionDecodeJson($sessionRow['flags_json'] ?? '[]', []),
+        'question_times' => studentExamSessionDecodeJson($sessionRow['question_times_json'] ?? '[]', []),
         'score' => (int) ($sessionRow['score'] ?? studentExamSessionCalculateScore($questions, $answers)),
         'total' => $total,
         'started_at' => (int) ($sessionRow['started_at'] ?? 0),
         'ends_at' => (int) ($sessionRow['ends_at'] ?? 0),
         'duration_seconds' => (int) ($sessionRow['duration_seconds'] ?? 0),
-        'attempt_logged' => (int) ($sessionRow['attempt_logged'] ?? 0) === 1
+        'attempt_logged' => (int) ($sessionRow['attempt_logged'] ?? 0) === 1,
+        'reviewed_before_submit' => (int) ($sessionRow['reviewed_before_submit'] ?? 0) === 1,
+        'last_autosaved_at' => (string) ($sessionRow['last_autosaved_at'] ?? ''),
+        'resume_count' => (int) ($sessionRow['resume_count'] ?? 0),
+        'timer_paused' => (int) ($sessionRow['timer_paused'] ?? 0) === 1,
+        'time_bonus_seconds' => max(0, (int) ($sessionRow['time_bonus_seconds'] ?? 0)),
+        'admin_paused_at' => (string) ($sessionRow['admin_paused_at'] ?? '')
     ]);
 
     return true;
@@ -650,7 +762,8 @@ function studentSaveExamSession($db, array $payload)
     $sessionId = (int) ($payload['id'] ?? 0);
     $questions = is_array($payload['questions'] ?? null) ? $payload['questions'] : [];
     $answers = is_array($payload['answers'] ?? null) ? $payload['answers'] : [];
-    $security = normalizeQuizSecurityState($payload['security'] ?? []);
+    $flags = is_array($payload['flags'] ?? null) ? $payload['flags'] : [];
+    $questionTimes = is_array($payload['question_times'] ?? null) ? $payload['question_times'] : [];
 
     if ($studentName === '' || empty($questions)) {
         return 0;
@@ -666,14 +779,25 @@ function studentSaveExamSession($db, array $payload)
         'header_text' => trim((string) ($payload['header_text'] ?? '')),
         'questions_json' => json_encode(array_values($questions), JSON_UNESCAPED_SLASHES),
         'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
-        'security_json' => json_encode($security, JSON_UNESCAPED_SLASHES),
+        'flags_json' => json_encode($flags, JSON_UNESCAPED_SLASHES),
+        'question_times_json' => json_encode($questionTimes, JSON_UNESCAPED_SLASHES),
         'current_index' => (int) ($payload['current_index'] ?? 0),
         'score' => (int) ($payload['score'] ?? studentExamSessionCalculateScore($questions, $answers)),
         'total_questions' => max(0, (int) ($payload['total_questions'] ?? count($questions))),
         'started_at' => (int) ($payload['started_at'] ?? time()),
         'ends_at' => (int) ($payload['ends_at'] ?? 0),
         'duration_seconds' => (int) ($payload['duration_seconds'] ?? 0),
+        'timer_paused' => (int) (!empty($payload['timer_paused'])),
+        'time_bonus_seconds' => max(0, (int) ($payload['time_bonus_seconds'] ?? 0)),
+        'admin_paused_at' => trim((string) ($payload['admin_paused_at'] ?? '')) !== '' ? (string) $payload['admin_paused_at'] : null,
+        'last_control_sync_at' => trim((string) ($payload['last_control_sync_at'] ?? '')) !== '' ? (string) $payload['last_control_sync_at'] : null,
+        'last_autosaved_at' => trim((string) ($payload['last_autosaved_at'] ?? '')) !== '' ? (string) $payload['last_autosaved_at'] : null,
+        'last_activity_at' => trim((string) ($payload['last_activity_at'] ?? '')) !== '' ? (string) $payload['last_activity_at'] : date('Y-m-d H:i:s'),
         'attempt_logged' => (int) (!empty($payload['attempt_logged'])),
+        'reviewed_before_submit' => (int) (!empty($payload['reviewed_before_submit'])),
+        'resume_count' => max(0, (int) ($payload['resume_count'] ?? 0)),
+        'last_ip_address' => trim((string) ($payload['last_ip_address'] ?? '')) !== '' ? (string) $payload['last_ip_address'] : null,
+        'last_user_agent' => trim((string) ($payload['last_user_agent'] ?? '')) !== '' ? substr((string) $payload['last_user_agent'], 0, 255) : null,
         'status' => strtolower(trim((string) ($payload['status'] ?? 'in_progress')))
     ];
     $params['completed_at'] = $params['status'] === 'completed'
@@ -695,14 +819,25 @@ function studentSaveExamSession($db, array $payload)
             'header_text' => $params['header_text'],
             'questions_json' => $params['questions_json'],
             'answers_json' => $params['answers_json'],
-            'security_json' => $params['security_json'],
+            'flags_json' => $params['flags_json'],
+            'question_times_json' => $params['question_times_json'],
             'current_index' => $params['current_index'],
             'score' => $params['score'],
             'total_questions' => $params['total_questions'],
             'started_at' => $params['started_at'],
             'ends_at' => $params['ends_at'],
             'duration_seconds' => $params['duration_seconds'],
+            'timer_paused' => $params['timer_paused'],
+            'time_bonus_seconds' => $params['time_bonus_seconds'],
+            'admin_paused_at' => $params['admin_paused_at'],
+            'last_control_sync_at' => $params['last_control_sync_at'],
+            'last_autosaved_at' => $params['last_autosaved_at'],
+            'last_activity_at' => $params['last_activity_at'],
             'attempt_logged' => $params['attempt_logged'],
+            'reviewed_before_submit' => $params['reviewed_before_submit'],
+            'resume_count' => $params['resume_count'],
+            'last_ip_address' => $params['last_ip_address'],
+            'last_user_agent' => $params['last_user_agent'],
             'status' => $params['status'],
             'completed_at' => $params['completed_at']
         ];
@@ -715,14 +850,25 @@ function studentSaveExamSession($db, array $payload)
                  header_text = :header_text,
                  questions_json = :questions_json,
                  answers_json = :answers_json,
-                 security_json = :security_json,
+                 flags_json = :flags_json,
+                 question_times_json = :question_times_json,
                  current_index = :current_index,
                  score = :score,
                  total_questions = :total_questions,
                  started_at = :started_at,
                  ends_at = :ends_at,
                  duration_seconds = :duration_seconds,
+                 timer_paused = :timer_paused,
+                 time_bonus_seconds = :time_bonus_seconds,
+                 admin_paused_at = :admin_paused_at,
+                 last_control_sync_at = :last_control_sync_at,
+                 last_autosaved_at = :last_autosaved_at,
+                 last_activity_at = :last_activity_at,
                  attempt_logged = :attempt_logged,
+                 reviewed_before_submit = :reviewed_before_submit,
+                 resume_count = :resume_count,
+                 last_ip_address = :last_ip_address,
+                 last_user_agent = :last_user_agent,
                  status = :status,
                  completed_at = :completed_at
              WHERE id = :id
@@ -744,14 +890,25 @@ function studentSaveExamSession($db, array $payload)
             header_text,
             questions_json,
             answers_json,
-            security_json,
+            flags_json,
+            question_times_json,
             current_index,
             score,
             total_questions,
             started_at,
             ends_at,
             duration_seconds,
+            timer_paused,
+            time_bonus_seconds,
+            admin_paused_at,
+            last_control_sync_at,
+            last_autosaved_at,
+            last_activity_at,
             attempt_logged,
+            reviewed_before_submit,
+            resume_count,
+            last_ip_address,
+            last_user_agent,
             status,
             completed_at
          ) VALUES (
@@ -764,14 +921,25 @@ function studentSaveExamSession($db, array $payload)
             :header_text,
             :questions_json,
             :answers_json,
-            :security_json,
+            :flags_json,
+            :question_times_json,
             :current_index,
             :score,
             :total_questions,
             :started_at,
             :ends_at,
             :duration_seconds,
+            :timer_paused,
+            :time_bonus_seconds,
+            :admin_paused_at,
+            :last_control_sync_at,
+            :last_autosaved_at,
+            :last_activity_at,
             :attempt_logged,
+            :reviewed_before_submit,
+            :resume_count,
+            :last_ip_address,
+            :last_user_agent,
             :status,
             :completed_at
          )',
@@ -793,10 +961,12 @@ function studentFinalizeExamSession($db, array $sessionRow, $timedOut = false)
 {
     ensureStudentExamSessionsSchema($db);
     ensureExamAttemptsSchema($db);
+    ensureExamQuestionAnalyticsSchema($db);
 
     $questions = studentExamSessionDecodeJson($sessionRow['questions_json'] ?? '[]', []);
     $answers = studentExamSessionDecodeJson($sessionRow['answers_json'] ?? '[]', []);
-    $security = normalizeQuizSecurityState(studentExamSessionDecodeJson($sessionRow['security_json'] ?? '[]', []));
+    $flags = studentExamSessionDecodeJson($sessionRow['flags_json'] ?? '[]', []);
+    $questionTimes = studentExamSessionDecodeJson($sessionRow['question_times_json'] ?? '[]', []);
     $score = studentExamSessionCalculateScore($questions, $answers);
     $total = max(0, (int) ($sessionRow['total_questions'] ?? count($questions)));
     $startedAt = (int) ($sessionRow['started_at'] ?? time());
@@ -807,21 +977,69 @@ function studentFinalizeExamSession($db, array $sessionRow, $timedOut = false)
         $elapsed = min($elapsed, $durationSeconds);
     }
 
+    $questionBreakdown = [];
+    foreach ($questions as $index => $question) {
+        $selectedAnswer = trim((string) ($answers[$index] ?? ''));
+        $correctAnswer = trim((string) ($question['correct_answer'] ?? ''));
+        $wasAnswered = $selectedAnswer !== '';
+        $questionBreakdown[] = [
+            'question_number' => $index + 1,
+            'question_text' => trim((string) ($question['question'] ?? '')),
+            'selected_answer' => $selectedAnswer,
+            'correct_answer' => $correctAnswer,
+            'is_correct' => $wasAnswered && strcasecmp($selectedAnswer, $correctAnswer) === 0,
+            'was_answered' => $wasAnswered,
+            'was_flagged' => !empty($flags[$index]),
+            'time_spent_seconds' => max(0, (int) ($questionTimes[$index] ?? 0))
+        ];
+    }
+
     if ((int) ($sessionRow['attempt_logged'] ?? 0) !== 1) {
         $db->query(
-            'INSERT INTO exam_attempts (student_name, student_class, subject, task_type, score, total_questions, time_spent_seconds, timed_out, completed_at)
-             VALUES (:student_name, :student_class, :subject, :task_type, :score, :total_questions, :time_spent_seconds, :timed_out, NOW())',
+            'INSERT INTO exam_attempts (student_name, student_class, assessment_id, subject, task_type, term_key, header_text, score, total_questions, time_spent_seconds, timed_out, question_breakdown_json, flags_json, reviewed_before_submit, completed_at)
+             VALUES (:student_name, :student_class, :assessment_id, :subject, :task_type, :term_key, :header_text, :score, :total_questions, :time_spent_seconds, :timed_out, :question_breakdown_json, :flags_json, :reviewed_before_submit, NOW())',
             [
                 'student_name' => (string) ($sessionRow['student_name'] ?? 'Unknown Student'),
                 'student_class' => strtoupper((string) ($sessionRow['student_class'] ?? 'SS3')),
+                'assessment_id' => (int) ($sessionRow['assessment_id'] ?? 0),
                 'subject' => strtolower((string) ($sessionRow['subject'] ?? 'unknown')),
                 'task_type' => normalizeAssessmentTask((string) ($sessionRow['task_type'] ?? 'exam')),
+                'term_key' => normalizeExamTerm((string) ($sessionRow['term_key'] ?? 'first_term')),
+                'header_text' => trim((string) ($sessionRow['header_text'] ?? '')),
                 'score' => $score,
                 'total_questions' => $total,
                 'time_spent_seconds' => $elapsed,
-                'timed_out' => $timedOut ? 1 : 0
+                'timed_out' => $timedOut ? 1 : 0,
+                'question_breakdown_json' => json_encode($questionBreakdown, JSON_UNESCAPED_SLASHES),
+                'flags_json' => json_encode($flags, JSON_UNESCAPED_SLASHES),
+                'reviewed_before_submit' => !empty($sessionRow['reviewed_before_submit']) ? 1 : 0
             ]
         );
+
+        $attemptId = (int) ($db->connection->lastInsertId() ?? 0);
+        foreach ($questionBreakdown as $questionRow) {
+            $db->query(
+                'INSERT INTO exam_question_analytics (attempt_id, assessment_id, student_name, student_class, subject, task_type, question_hash, question_number, question_text, selected_answer, correct_answer, is_correct, was_answered, was_flagged, time_spent_seconds, completed_at)
+                 VALUES (:attempt_id, :assessment_id, :student_name, :student_class, :subject, :task_type, :question_hash, :question_number, :question_text, :selected_answer, :correct_answer, :is_correct, :was_answered, :was_flagged, :time_spent_seconds, NOW())',
+                [
+                    'attempt_id' => $attemptId,
+                    'assessment_id' => (int) ($sessionRow['assessment_id'] ?? 0),
+                    'student_name' => (string) ($sessionRow['student_name'] ?? 'Unknown Student'),
+                    'student_class' => strtoupper((string) ($sessionRow['student_class'] ?? 'SS3')),
+                    'subject' => strtolower((string) ($sessionRow['subject'] ?? 'unknown')),
+                    'task_type' => normalizeAssessmentTask((string) ($sessionRow['task_type'] ?? 'exam')),
+                    'question_hash' => sha1(strtolower((string) ($sessionRow['subject'] ?? 'unknown')) . '|' . strtolower((string) ($questionRow['question_text'] ?? '')) . '|' . strtolower((string) ($questionRow['correct_answer'] ?? ''))),
+                    'question_number' => (int) ($questionRow['question_number'] ?? 0),
+                    'question_text' => (string) ($questionRow['question_text'] ?? ''),
+                    'selected_answer' => (string) ($questionRow['selected_answer'] ?? ''),
+                    'correct_answer' => (string) ($questionRow['correct_answer'] ?? ''),
+                    'is_correct' => !empty($questionRow['is_correct']) ? 1 : 0,
+                    'was_answered' => !empty($questionRow['was_answered']) ? 1 : 0,
+                    'was_flagged' => !empty($questionRow['was_flagged']) ? 1 : 0,
+                    'time_spent_seconds' => (int) ($questionRow['time_spent_seconds'] ?? 0)
+                ]
+            );
+        }
     }
 
     $sessionRow['answers_json'] = json_encode($answers, JSON_UNESCAPED_SLASHES);
@@ -843,69 +1061,29 @@ function studentFinalizeExamSession($db, array $sessionRow, $timedOut = false)
         'header_text' => (string) ($sessionRow['header_text'] ?? ''),
         'questions' => $questions,
         'answers' => $answers,
-        'security' => $security,
+        'flags' => $flags,
+        'question_times' => $questionTimes,
         'current_index' => $total,
         'score' => $score,
         'total_questions' => $total,
         'started_at' => $startedAt,
         'ends_at' => (int) ($sessionRow['ends_at'] ?? 0),
         'duration_seconds' => $durationSeconds,
+        'timer_paused' => (int) ($sessionRow['timer_paused'] ?? 0),
+        'time_bonus_seconds' => max(0, (int) ($sessionRow['time_bonus_seconds'] ?? 0)),
+        'admin_paused_at' => (string) ($sessionRow['admin_paused_at'] ?? ''),
+        'last_control_sync_at' => date('Y-m-d H:i:s'),
+        'last_autosaved_at' => (string) ($sessionRow['last_autosaved_at'] ?? ''),
+        'last_activity_at' => date('Y-m-d H:i:s'),
         'attempt_logged' => true,
+        'reviewed_before_submit' => !empty($sessionRow['reviewed_before_submit']),
+        'resume_count' => (int) ($sessionRow['resume_count'] ?? 0),
+        'last_ip_address' => (string) ($sessionRow['last_ip_address'] ?? ''),
+        'last_user_agent' => (string) ($sessionRow['last_user_agent'] ?? ''),
         'status' => 'completed'
     ]);
 
     return $sessionRow;
-}
-
-/**
- * Ensure exam security event log exists
- *
- * @param mixed $db
- * @return void
- */
-function ensureExamSecurityEventsSchema($db)
-{
-    $db->query(
-        'CREATE TABLE IF NOT EXISTS exam_security_events (
-            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            student_name VARCHAR(120) NOT NULL,
-            student_class VARCHAR(20) NOT NULL,
-            assessment_id INT(11) NOT NULL DEFAULT 0,
-            subject VARCHAR(80) NOT NULL,
-            task_type VARCHAR(20) NOT NULL DEFAULT "exam",
-            event_type VARCHAR(40) NOT NULL,
-            details_json TEXT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            KEY idx_exam_security_student (student_name, student_class, created_at),
-            KEY idx_exam_security_assessment (assessment_id, subject, created_at)
-        )'
-    );
-}
-
-/**
- * Log exam security event for review
- *
- * @param mixed $db
- * @param array $payload
- * @return void
- */
-function logExamSecurityEvent($db, array $payload)
-{
-    ensureExamSecurityEventsSchema($db);
-
-    $db->query(
-        'INSERT INTO exam_security_events (student_name, student_class, assessment_id, subject, task_type, event_type, details_json, created_at)
-         VALUES (:student_name, :student_class, :assessment_id, :subject, :task_type, :event_type, :details_json, NOW())',
-        [
-            'student_name' => trim((string) ($payload['student_name'] ?? 'Unknown Student')),
-            'student_class' => strtoupper(trim((string) ($payload['student_class'] ?? 'SS3'))),
-            'assessment_id' => (int) ($payload['assessment_id'] ?? 0),
-            'subject' => strtolower(trim((string) ($payload['subject'] ?? ''))),
-            'task_type' => normalizeAssessmentTask((string) ($payload['task_type'] ?? 'exam')),
-            'event_type' => substr(trim((string) ($payload['event_type'] ?? 'unknown')), 0, 40),
-            'details_json' => empty($payload['details']) ? null : json_encode($payload['details'], JSON_UNESCAPED_SLASHES)
-        ]
-    );
 }
 
 /**
@@ -1095,6 +1273,112 @@ function examToggleActiveSubject($db, $studentClass, $subject, $adminUserId = nu
     return true;
 }
 
+function studentLogExamSessionEvent($db, array $payload)
+{
+    ensureExamSessionEventsSchema($db);
+
+    $studentName = trim((string) ($payload['student_name'] ?? ''));
+    if ($studentName === '') {
+        return;
+    }
+
+    $ipAddress = null;
+    foreach ([(string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''), (string) ($_SERVER['REMOTE_ADDR'] ?? '')] as $candidate) {
+        $parts = array_filter(array_map('trim', explode(',', $candidate)));
+        if (!empty($parts)) {
+            $ipAddress = (string) $parts[0];
+            break;
+        }
+    }
+
+    $db->query(
+        'INSERT INTO exam_session_events (session_id, student_name, student_class, assessment_id, subject, task_type, event_key, summary, current_index, payload_json, ip_address, user_agent, created_at)
+         VALUES (:session_id, :student_name, :student_class, :assessment_id, :subject, :task_type, :event_key, :summary, :current_index, :payload_json, :ip_address, :user_agent, NOW())',
+        [
+            'session_id' => (int) ($payload['session_id'] ?? 0),
+            'student_name' => $studentName,
+            'student_class' => strtoupper((string) ($payload['student_class'] ?? 'SS3')),
+            'assessment_id' => (int) ($payload['assessment_id'] ?? 0),
+            'subject' => strtolower((string) ($payload['subject'] ?? 'unknown')),
+            'task_type' => normalizeAssessmentTask((string) ($payload['task_type'] ?? 'exam')),
+            'event_key' => trim((string) ($payload['event_key'] ?? 'activity')),
+            'summary' => trim((string) ($payload['summary'] ?? 'Exam activity recorded')),
+            'current_index' => max(0, (int) ($payload['current_index'] ?? 0)),
+            'payload_json' => empty($payload['payload']) ? null : json_encode($payload['payload'], JSON_UNESCAPED_SLASHES),
+            'ip_address' => $ipAddress,
+            'user_agent' => substr(trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 255)
+        ]
+    );
+}
+
+function studentFetchExamSessionEvents($db, $limit = 300)
+{
+    ensureExamSessionEventsSchema($db);
+    $rowLimit = max(1, min(1000, (int) $limit));
+
+    return $db->query(
+        "SELECT id, session_id, student_name, student_class, assessment_id, subject, task_type, event_key, summary, current_index, payload_json, ip_address, user_agent, created_at
+         FROM exam_session_events
+         ORDER BY id DESC
+         LIMIT {$rowLimit}"
+    )->fetchAll();
+}
+
+function adminExamAnalyticsSummary($db)
+{
+    ensureExamAttemptsSchema($db);
+    ensureExamQuestionAnalyticsSchema($db);
+    ensureExamSessionEventsSchema($db);
+
+    $overview = $db->query(
+        'SELECT COUNT(*) AS total_attempts,
+                AVG((score / NULLIF(total_questions, 0)) * 100) AS avg_percent,
+                SUM(CASE WHEN timed_out = 1 THEN 1 ELSE 0 END) AS timed_out_total,
+                SUM(CASE WHEN reviewed_before_submit = 1 THEN 1 ELSE 0 END) AS reviewed_total
+         FROM exam_attempts'
+    )->fetch() ?: [];
+
+    $hardQuestions = $db->query(
+        'SELECT subject, student_class, question_number, question_text,
+                COUNT(*) AS attempts,
+                SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_total,
+                AVG(time_spent_seconds) AS avg_time_spent
+         FROM exam_question_analytics
+         GROUP BY assessment_id, subject, student_class, question_hash, question_number, question_text
+         ORDER BY (SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)) ASC, COUNT(*) DESC
+         LIMIT 8'
+    )->fetchAll();
+
+    $subjectPerformance = $db->query(
+        'SELECT subject, student_class,
+                COUNT(*) AS attempts,
+                AVG((score / NULLIF(total_questions, 0)) * 100) AS avg_percent,
+                AVG(time_spent_seconds) AS avg_time_spent
+         FROM exam_attempts
+         GROUP BY subject, student_class
+         ORDER BY subject ASC, student_class ASC'
+    )->fetchAll();
+
+    $eventCounts = $db->query(
+        'SELECT event_key, COUNT(*) AS total
+         FROM exam_session_events
+         GROUP BY event_key
+         ORDER BY total DESC, event_key ASC'
+    )->fetchAll();
+
+    return [
+        'overview' => [
+            'total_attempts' => (int) ($overview['total_attempts'] ?? 0),
+            'avg_percent' => round((float) ($overview['avg_percent'] ?? 0), 1),
+            'timed_out_total' => (int) ($overview['timed_out_total'] ?? 0),
+            'reviewed_total' => (int) ($overview['reviewed_total'] ?? 0)
+        ],
+        'hard_questions' => $hardQuestions,
+        'subject_performance' => $subjectPerformance,
+        'event_counts' => $eventCounts
+    ];
+}
+
 /**
  * Return allowed class labels for a subject category
  *
@@ -1121,9 +1405,10 @@ function classOptionsForSubjectCategory($category = 'both')
  *
  * @param array $questions
  * @param array $answers
- * @return array<int,array{index:int,number:int,answered:bool}>
+ * @param array $flags
+ * @return array<int,array<string,mixed>>
  */
-function buildAnsweredMap($questions, $answers = [])
+function buildAnsweredMap($questions, $answers = [], $flags = [])
 {
     $map = [];
 
@@ -1131,9 +1416,54 @@ function buildAnsweredMap($questions, $answers = [])
         $map[] = [
             'index' => (int) $index,
             'number' => $index + 1,
-            'answered' => trim((string) ($answers[$index] ?? '')) !== ''
+            'answered' => trim((string) ($answers[$index] ?? '')) !== '',
+            'flagged' => !empty($flags[$index])
         ];
     }
 
     return $map;
+}
+
+function studentGetGlobalTimerPause($db)
+{
+    try {
+        $db->query(
+            "CREATE TABLE IF NOT EXISTS exam_global_controls (
+                id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                control_key VARCHAR(40) NOT NULL,
+                control_value VARCHAR(255) NOT NULL,
+                created_by_admin_id INT(11) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL,
+                UNIQUE KEY uniq_control_key (control_key)
+            )"
+        );
+
+        $row = $db->query(
+            "SELECT control_value FROM exam_global_controls WHERE control_key = 'global_timer_pause' LIMIT 1"
+        )->fetch();
+
+        return $row ? (string) ($row['control_value'] ?? '0') : '0';
+    } catch (Exception $e) {
+        return '0';
+    }
+}
+
+function isAjaxRequest()
+{
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        return true;
+    }
+
+    $accept = isset($_SERVER['HTTP_ACCEPT']) ? strtolower((string) $_SERVER['HTTP_ACCEPT']) : '';
+    if (strpos($accept, 'application/json') !== false) {
+        return true;
+    }
+
+    $contentType = isset($_SERVER['CONTENT_TYPE']) ? strtolower((string) $_SERVER['CONTENT_TYPE']) : '';
+    if (strpos($contentType, 'application/json') !== false) {
+        return true;
+    }
+
+    return false;
 }

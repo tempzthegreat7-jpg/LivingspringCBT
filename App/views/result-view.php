@@ -14,7 +14,7 @@
     <p class="question">Test Completed</p>
     <p class="question">Score: <?= $score ?> / <?= $total ?></p>
     <div class="buttons">
-        <a class="button" href="/student/correction?index=0">View Correction</a>
+        <a class="button" href="/student/correction?index=0" aria-disabled="true">View Correction</a>
         <a class="button button-primary" href="/student/question-set">Choose Another Subject</a>
     </div>
 </div>

@@ -6,7 +6,9 @@ $config = require basePath('config/config-db2.php');
 $db = new Database($config);
 $studentClass = strtoupper(Session::get('student')['class'] ?? 'SS3');
 ensureAssessmentConfigsSchema($db);
+ensureExamActivationSchema($db);
 $taskOptions = assessmentTaskOptions();
+$activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
 $rows = $db->query(
     'SELECT id, subject, student_class, task_type, header_text, term_key, duration_seconds, table_name
      FROM assessment_configs
@@ -36,6 +38,9 @@ foreach ($rows as $row) {
 
     $subjectKey = strtolower(trim((string) ($row['subject'] ?? '')));
     $taskKey = normalizeAssessmentTask($row['task_type'] ?? 'exam');
+    if ($taskKey === 'exam' && !in_array($subjectKey, $activeExamSubjects, true)) {
+        continue;
+    }
     $termKey = normalizeExamTerm($row['term_key'] ?? 'first_term');
     $headerText = trim((string) ($row['header_text'] ?? ''));
     $durationSeconds = max(0, (int) ($row['duration_seconds'] ?? 0));
@@ -54,7 +59,10 @@ foreach ($rows as $row) {
 
 $hasAvailableSubjects = !empty($availableSubjects) && !empty($assessments);
 $defaultSubject = array_key_first($availableSubjects) ?: '';
-$activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
+$taskOptionsForStudent = $taskOptions;
+if (empty($activeExamSubjects)) {
+    unset($taskOptionsForStudent['exam']);
+}
 
 ?>
 
@@ -73,10 +81,13 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
         <?= csrfField() ?>
         <label for="task">Task</label>
         <select name="task" id="task" class="select">
-            <?php foreach ($taskOptions as $taskKey => $taskLabel): ?>
+            <?php foreach ($taskOptionsForStudent as $taskKey => $taskLabel): ?>
                 <option value="<?= htmlspecialchars($taskKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($taskLabel, ENT_QUOTES, 'UTF-8') ?></option>
             <?php endforeach; ?>
         </select>
+        <?php if (empty($activeExamSubjects)): ?>
+            <p class="helper-note helper-note-warning">No active exams are available right now. You can still choose other available tasks on this page.</p>
+        <?php endif; ?>
         <label for="subject">Subject:</label>
         <select name="subject" id="subject" class="select">
             <?php if (empty($availableSubjects)): ?>
@@ -87,7 +98,7 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
                 <?php endforeach ?>
             <?php endif ?>
         </select>
-        <label id="availableLabel">Available <?= htmlspecialchars((string) ($taskOptions['exam'] ?? 'Exam'), ENT_QUOTES, 'UTF-8') ?></label>
+        <label id="availableLabel">Available <?= htmlspecialchars((string) (($taskOptionsForStudent['exam'] ?? reset($taskOptionsForStudent) ?: 'Task')), ENT_QUOTES, 'UTF-8') ?></label>
         <div class="task-options-inline" id="taskOptionsInline"></div>
         <input type="hidden" name="assessment_id" id="assessment_id" value="" />
 
@@ -100,14 +111,6 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
 
         <button type="submit" class="button" id="startButton" <?= $hasAvailableSubjects ? '' : 'disabled' ?>>Start &RightArrow;</button>
     </form>
-</div>
-
-<div class="task-loading-overlay" id="startTaskOverlay" aria-hidden="true">
-    <div class="task-loading-card" role="status" aria-live="polite">
-        <span class="task-loading-spinner" aria-hidden="true"></span>
-        <p class="task-loading-title">Preparing Task</p>
-        <p class="task-loading-subtitle">Please wait while your assessment environment is being set up.</p>
-    </div>
 </div>
 
 <script>
@@ -125,7 +128,7 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
             return;
         }
 
-        const taskLabels = <?= json_encode($taskOptions, JSON_UNESCAPED_SLASHES) ?>;
+        const taskLabels = <?= json_encode($taskOptionsForStudent, JSON_UNESCAPED_SLASHES) ?>;
         const activeExamSubjects = <?= json_encode($activeExamSubjects, JSON_UNESCAPED_SLASHES) ?>;
         const subjectOptionCache = Array.from(subjectSelect.options).map((option) => ({
             value: String(option.value || ''),
@@ -169,17 +172,6 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
         const applyExamSubjectLock = () => {
             const isExam = String(taskSelect.value || '').toLowerCase() === 'exam';
             if (!isExam || !hasActiveExamSubject) {
-                if (isExam && !hasActiveExamSubject) {
-                    subjectSelect.innerHTML = '';
-                    const node = document.createElement('option');
-                    node.value = '';
-                    node.textContent = 'No active exam subjects';
-                    node.disabled = true;
-                    node.selected = true;
-                    subjectSelect.appendChild(node);
-                    return;
-                }
-
                 subjectSelect.innerHTML = '';
                 subjectOptionCache.forEach((option) => {
                     const node = document.createElement('option');
@@ -257,42 +249,35 @@ $activeExamSubjects = examActiveSubjectsForClass($db, $studentClass);
         });
 
         const defaultSubject = <?= json_encode($defaultSubject, JSON_UNESCAPED_SLASHES) ?>;
+        if (preload.task && Array.from(taskSelect.options).some((option) => option.value === preload.task)) {
+            taskSelect.value = preload.task;
+        }
+
         applyExamSubjectLock();
 
         const isExamTask = String(taskSelect.value || '').toLowerCase() === 'exam';
-        const examLockedOff = isExamTask && !hasActiveExamSubject;
 
         if (preload.subject && Array.from(subjectSelect.options).some((option) => option.value === preload.subject)) {
             subjectSelect.value = preload.subject;
         } else if (hasActiveExamSubject && isExamTask) {
             subjectSelect.value = String(activeExamSubjects[0] || '');
-        } else if (!examLockedOff && !subjectSelect.value && defaultSubject) {
+        } else if (!subjectSelect.value && defaultSubject) {
             subjectSelect.value = defaultSubject;
         }
 
-        if (preload.task && Array.from(taskSelect.options).some((option) => option.value === preload.task)) {
-            taskSelect.value = preload.task;
-        }
         renderOptions();
 
         const startForm = document.getElementById('startTaskForm');
-        const startOverlay = document.getElementById('startTaskOverlay');
         let isSubmitting = false;
 
-        if (startForm && startOverlay) {
+        if (startForm) {
             startForm.addEventListener('submit', (event) => {
                 if (isSubmitting) {
+                    event.preventDefault();
                     return;
                 }
 
-                event.preventDefault();
                 isSubmitting = true;
-                startOverlay.classList.add('active');
-                startOverlay.setAttribute('aria-hidden', 'false');
-
-                window.requestAnimationFrame(() => {
-                    startForm.submit();
-                });
             });
         }
     })();
