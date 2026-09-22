@@ -122,6 +122,7 @@ function safeTableName($name)
 
 /**
  * Redirects to pages
+ * 
  */
 
 function redirect($url)
@@ -517,7 +518,8 @@ function ensureStudentExamSessionsSchema($db)
         'timer_paused' => 'ALTER TABLE student_exam_sessions ADD COLUMN timer_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER duration_seconds',
         'time_bonus_seconds' => 'ALTER TABLE student_exam_sessions ADD COLUMN time_bonus_seconds INT(11) NOT NULL DEFAULT 0 AFTER timer_paused',
         'admin_paused_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN admin_paused_at DATETIME NULL AFTER time_bonus_seconds',
-        'last_control_sync_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_control_sync_at DATETIME NULL AFTER admin_paused_at'
+        'last_control_sync_at' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_control_sync_at DATETIME NULL AFTER admin_paused_at',
+        'last_user_agent' => 'ALTER TABLE student_exam_sessions ADD COLUMN last_user_agent VARCHAR(255) NULL AFTER last_ip_address'
     ];
 
     foreach ($requiredColumns as $columnName => $query) {
@@ -740,7 +742,8 @@ function studentRestoreExamSessionToPhpSession(array $sessionRow)
         'resume_count' => (int) ($sessionRow['resume_count'] ?? 0),
         'timer_paused' => (int) ($sessionRow['timer_paused'] ?? 0) === 1,
         'time_bonus_seconds' => max(0, (int) ($sessionRow['time_bonus_seconds'] ?? 0)),
-        'admin_paused_at' => (string) ($sessionRow['admin_paused_at'] ?? '')
+        'admin_paused_at' => (string) ($sessionRow['admin_paused_at'] ?? ''),
+        'resume_count' => (int) ($sessionRow['resume_count'] ?? 0)
     ]);
 
     return true;

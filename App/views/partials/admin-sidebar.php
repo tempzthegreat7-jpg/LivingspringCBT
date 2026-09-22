@@ -150,13 +150,13 @@ $adminNavLinks = [
                         $isCurrent = $currentPath === '/admin/exam-insights';
                     }
                 ?>
-                <a href="<?= htmlspecialchars($link['href'], ENT_QUOTES, 'UTF-8') ?>" class="admin-nav-link <?= $isCurrent ? 'current' : '' ?>">
-                    <span class="admin-nav-icon"><i class="fa <?= htmlspecialchars($link['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i></span>
-                    <span class="admin-nav-copy">
-                        <span class="admin-nav-text"><?= htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                        <span class="admin-nav-hint"><?= htmlspecialchars($link['hint'], ENT_QUOTES, 'UTF-8') ?></span>
-                    </span>
-                </a>
+                    <a href="<?= htmlspecialchars($link['href'], ENT_QUOTES, 'UTF-8') ?>" class="admin-nav-link <?= $isCurrent ? 'current' : '' ?>">
+                        <span class="admin-nav-icon"><i class="fa <?= htmlspecialchars($link['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i></span>
+                        <span class="admin-nav-copy">
+                            <span class="admin-nav-text"><?= htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="admin-nav-hint"><?= htmlspecialchars($link['hint'], ENT_QUOTES, 'UTF-8') ?></span>
+                        </span>
+                    </a>
                 <?php endforeach; ?>
                 <?php $isCurrent = $currentPath === '/admin/future-plans'; ?>
                 <a href="/admin/future-plans" class="admin-nav-link <?= $isCurrent ? 'current' : '' ?>">

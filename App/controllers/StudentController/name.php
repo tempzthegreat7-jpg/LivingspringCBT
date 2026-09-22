@@ -32,6 +32,16 @@ foreach ($rows as $row) {
         continue;
     }
 
+    // Check if individual student is locked
+    $studentId = $db->query(
+        'SELECT id, is_locked FROM student_users WHERE student_name = :name AND student_class = :class LIMIT 1',
+        ['name' => $studentName, 'class' => $classLabel]
+    )->fetch();
+    
+    if ($studentId && (int) ($studentId['is_locked'] ?? 0) === 1) {
+        continue;
+    }
+
     $namesByClass[$classLabel][] = $studentName;
 }
 

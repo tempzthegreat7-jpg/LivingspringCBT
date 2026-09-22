@@ -28,8 +28,7 @@
                         class="select future-plan-textarea"
                         rows="6"
                         placeholder="e.g. Add offline mode for student exams..."
-                        required
-                    ></textarea>
+                        required></textarea>
                     <button class="button" type="submit">Save Plan</button>
                 </form>
             </article>
@@ -43,11 +42,11 @@
                     <?php if (!empty($plans ?? [])): ?>
                         <?php foreach (($plans ?? []) as $plan): ?>
                             <?php
-                                $planId = (int) ($plan['id'] ?? 0);
-                                $planText = trim((string) ($plan['plan_text'] ?? ''));
-                                $isResolved = (int) ($plan['is_resolved'] ?? 0) === 1;
-                                $resolvedAt = trim((string) ($plan['resolved_at'] ?? ''));
-                                $createdAt = trim((string) ($plan['created_at'] ?? ''));
+                            $planId = (int) ($plan['id'] ?? 0);
+                            $planText = trim((string) ($plan['plan_text'] ?? ''));
+                            $isResolved = (int) ($plan['is_resolved'] ?? 0) === 1;
+                            $resolvedAt = trim((string) ($plan['resolved_at'] ?? ''));
+                            $createdAt = trim((string) ($plan['created_at'] ?? ''));
                             ?>
                             <div class="future-plan-card <?= $isResolved ? 'resolved' : 'open' ?>" data-plan-id="<?= $planId ?>">
                                 <div class="future-plan-head">
@@ -134,7 +133,10 @@
 
                         textarea.value = '';
                         if (window.AppWarning && typeof window.AppWarning.alert === 'function') {
-                            window.AppWarning.alert('Plan saved.', { title: 'Success', variant: 'success' });
+                            window.AppWarning.alert('Plan saved.', {
+                                title: 'Success',
+                                variant: 'success'
+                            });
                         }
 
                         window.location.reload();

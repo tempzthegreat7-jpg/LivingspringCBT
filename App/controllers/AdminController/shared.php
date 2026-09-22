@@ -290,6 +290,7 @@ function adminEnsureStudentUsersSchema($db)
             password_hash VARCHAR(255) NOT NULL,
             display_password VARCHAR(120) NOT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_locked TINYINT(1) NOT NULL DEFAULT 0,
             active_session_token VARCHAR(128) NULL,
             active_session_seen_at DATETIME NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -313,8 +314,12 @@ function adminEnsureStudentUsersSchema($db)
         $db->query('ALTER TABLE student_users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER display_password');
     }
 
+    if (!isset($columns['is_locked'])) {
+        $db->query('ALTER TABLE student_users ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
+    }
+
     if (!isset($columns['active_session_token'])) {
-        $db->query('ALTER TABLE student_users ADD COLUMN active_session_token VARCHAR(128) NULL AFTER is_active');
+        $db->query('ALTER TABLE student_users ADD COLUMN active_session_token VARCHAR(128) NULL AFTER is_locked');
     }
 
     if (!isset($columns['active_session_seen_at'])) {
@@ -346,6 +351,7 @@ function adminEnsureStudentUsersSchema($db)
     $db->query("UPDATE student_users SET student_class = 'SS3' WHERE student_class IS NULL OR TRIM(student_class) = ''");
     $db->query("UPDATE student_users SET display_password = 'changeme123' WHERE display_password IS NULL OR TRIM(display_password) = ''");
     $db->query('UPDATE student_users SET is_active = 1 WHERE is_active IS NULL');
+    $db->query('UPDATE student_users SET is_locked = 0 WHERE is_locked IS NULL');
     adminEnsureStudentLoginLogsSchema($db);
 }
 
@@ -552,6 +558,65 @@ function adminSetStudentClassLock($db, $studentClass, $isLocked, $adminUserId = 
             'updated_by_admin_id' => $adminUserId === null ? null : (int) $adminUserId
         ]
     );
+}
+
+function adminSetStudentLock($db, $studentId, $isLocked, $adminUserId = null)
+{
+    $id = (int) $studentId;
+    if ($id <= 0) {
+        return;
+    }
+
+    adminEnsureStudentUsersSchema($db);
+
+    $db->query(
+        'UPDATE student_users
+         SET is_locked = :is_locked
+         WHERE id = :id
+         LIMIT 1',
+        [
+            'is_locked' => (int) ($isLocked ? 1 : 0),
+            'id' => $id
+        ]
+    );
+}
+
+function adminIsStudentLocked($db, $studentId)
+{
+    $id = (int) $studentId;
+    if ($id <= 0) {
+        return false;
+    }
+
+    adminEnsureStudentUsersSchema($db);
+
+    $row = $db->query(
+        'SELECT is_locked FROM student_users WHERE id = :id LIMIT 1',
+        ['id' => $id]
+    )->fetch();
+
+    return (int) ($row['is_locked'] ?? 0) === 1;
+}
+
+function adminStudentLockMap($db, $studentIds)
+{
+    adminEnsureStudentUsersSchema($db);
+
+    if (empty($studentIds)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+    $rows = $db->query(
+        "SELECT id, is_locked FROM student_users WHERE id IN ($placeholders)",
+        $studentIds
+    )->fetchAll();
+
+    $map = [];
+    foreach ($rows as $row) {
+        $map[(int) $row['id']] = (int) ($row['is_locked'] ?? 0) === 1;
+    }
+    return $map;
 }
 
 function adminStudentSessionTimeoutSeconds()
@@ -1068,7 +1133,7 @@ function adminDeleteNotificationById($db, $id)
          WHERE id = :id
          LIMIT 1',
         [
-        'id' => $notificationId
+            'id' => $notificationId
         ]
     );
 }
@@ -1478,6 +1543,132 @@ function adminEnsureAuditLogsSchema($db)
             user_agent VARCHAR(255) NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )'
+    );
+}
+
+function adminEnsureFuturePlansSchema($db)
+{
+    $db->query(
+        'CREATE TABLE IF NOT EXISTS admin_future_plans (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            description TEXT NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "active",
+            created_by INT(11) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at DATETIME NULL,
+            resolved_by INT(11) NULL
+        )'
+    );
+
+    $columns = $db->query('DESCRIBE admin_future_plans')->fetchAll();
+    $hasStatus = false;
+    $hasResolvedAt = false;
+    $hasResolvedBy = false;
+
+    foreach ($columns as $column) {
+        $field = strtolower((string) ($column['Field'] ?? ''));
+        if ($field === 'status') {
+            $hasStatus = true;
+        } elseif ($field === 'resolved_at') {
+            $hasResolvedAt = true;
+        } elseif ($field === 'resolved_by') {
+            $hasResolvedBy = true;
+        }
+    }
+
+    if (!$hasStatus) {
+        $db->query('ALTER TABLE admin_future_plans ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT "active" AFTER description');
+    }
+
+    if (!$hasResolvedAt) {
+        $db->query('ALTER TABLE admin_future_plans ADD COLUMN resolved_at DATETIME NULL AFTER status');
+    }
+
+    if (!$hasResolvedBy) {
+        $db->query('ALTER TABLE admin_future_plans ADD COLUMN resolved_by INT(11) NULL AFTER resolved_at');
+    }
+
+    $db->query("UPDATE admin_future_plans SET status = 'active' WHERE status IS NULL OR TRIM(status) = ''");
+}
+
+function adminNormalizeFuturePlanStatus($status)
+{
+    $value = strtolower(trim((string) $status));
+    return in_array($value, ['active', 'resolved'], true) ? $value : 'active';
+}
+
+function adminCreateFuturePlan($db, $title, $description, $createdBy = null)
+{
+    $creatorId = (int) $createdBy;
+    if ($creatorId <= 0) {
+        $creatorId = null;
+    }
+
+    $db->query(
+        'INSERT INTO admin_future_plans (title, description, created_by)
+         VALUES (:title, :description, :created_by)',
+        [
+            'title' => trim((string) $title),
+            'description' => trim((string) $description),
+            'created_by' => $creatorId
+        ]
+    );
+}
+
+function adminFetchFuturePlans($db, $limit = 100, $status = null)
+{
+    adminEnsureFuturePlansSchema($db);
+
+    $rowLimit = max(1, min(200, (int) $limit));
+    $where = [];
+    $params = [];
+
+    if ($status !== null) {
+        $where[] = 'fp.status = :status';
+        $params['status'] = adminNormalizeFuturePlanStatus($status);
+    }
+
+    $whereClause = empty($where) ? '' : ('WHERE ' . implode(' AND ', $where));
+
+    return $db->query(
+        "SELECT fp.id, fp.title, fp.description, fp.status, fp.created_by, fp.created_at, fp.resolved_at, fp.resolved_by,
+                creator.name AS creator_name, resolver.name AS resolver_name
+         FROM admin_future_plans fp
+         LEFT JOIN teacher_users creator ON creator.id = fp.created_by
+         LEFT JOIN teacher_users resolver ON resolver.id = fp.resolved_by
+         {$whereClause}
+         ORDER BY 
+            CASE fp.status WHEN 'active' THEN 0 ELSE 1 END,
+            fp.created_at DESC, fp.id DESC
+         LIMIT {$rowLimit}",
+        $params
+    )->fetchAll();
+}
+
+function adminResolveFuturePlanById($db, $id, $resolvedBy = null)
+{
+    $planId = (int) $id;
+    if ($planId <= 0) {
+        return;
+    }
+
+    $resolverId = (int) $resolvedBy;
+    if ($resolverId <= 0) {
+        $resolverId = null;
+    }
+
+    $db->query(
+        'UPDATE admin_future_plans
+         SET status = "resolved",
+             resolved_at = NOW(),
+             resolved_by = :resolved_by
+         WHERE id = :id
+         LIMIT 1',
+        [
+            'id' => $planId,
+            'resolved_by' => $resolverId
+        ]
     );
 }
 

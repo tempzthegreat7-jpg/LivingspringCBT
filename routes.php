@@ -48,6 +48,7 @@ $router->get('/admin/teacher-alerts/feed', 'AdminController@teacherAlertsFeed')-
 $router->get('/admin/audit', 'AdminController@audit')->only('admin');
 $router->get('/admin/student-logins', 'AdminController@studentLogins')->only('admin');
 $router->get('/admin/exam-insights', 'AdminController@examInsights')->only('admin');
+$router->get('/admin/future-plans', 'AdminController@futurePlans')->only('admin');
 $router->get('/admin/exams', 'AdminController@exams')->only('admin');
 $router->get('/admin/exams/banks', 'AdminController@examBanks')->only('admin');
 $router->get('/admin/master-controls', 'AdminController@masterControls')->only('admin');
@@ -62,6 +63,7 @@ $router->post('/admin/teachers/update', 'AdminController@updateTeacher')->only('
 $router->post('/admin/teachers/delete', 'AdminController@deleteTeacher')->only('admin');
 $router->post('/admin/students', 'AdminController@createStudent')->only('admin');
 $router->post('/admin/students/class-lock', 'AdminController@updateStudentClassLock')->only('admin');
+$router->post('/admin/students/lock', 'AdminController@updateStudentLock')->only('admin');
 $router->post('/admin/students/update', 'AdminController@updateStudent')->only('admin');
 $router->post('/admin/students/delete', 'AdminController@deleteStudent')->only('admin');
 $router->post('/admin/notifications', 'AdminController@createNotification')->only('admin');
@@ -71,6 +73,8 @@ $router->post('/admin/teacher-alerts/resolve', 'AdminController@resolveTeacherAl
 $router->post('/admin/teacher-messages/reply', 'AdminController@replyTeacherMessage')->only('admin');
 $router->post('/admin/teacher-messages/send', 'AdminController@sendTeacherMessage')->only('admin');
 $router->post('/admin/exams/activate', 'AdminController@activateExam')->only('admin');
+$router->post('/admin/future-plans', 'AdminController@futurePlans')->only('admin');
+$router->post('/admin/future-plans/resolve', 'AdminController@resolveFuturePlan')->only('admin');
 $router->post('/admin/maintenance', 'AdminController@updateMaintenanceMode')->only('admin');
 $router->post('/admin/subjects/create', 'AdminController@createSubject')->only('admin');
 $router->post('/admin/subjects/delete', 'AdminController@deleteSubject')->only('admin');

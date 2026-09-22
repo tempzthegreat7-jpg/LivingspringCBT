@@ -9,34 +9,17 @@ $db = new Database($config);
 adminEnsureTeacherUsersSchema($db);
 adminEnsureFuturePlansSchema($db);
 
-$planId = (int) ($_POST['plan_id'] ?? 0);
-$action = strtolower(trim((string) ($_POST['action'] ?? '')));
+$adminUser = Session::get('user');
+$adminUserId = (int) ($adminUser['id'] ?? 0);
 
-if ($planId <= 0 || !in_array($action, ['resolve', 'unresolve'], true)) {
-    Session::setFlashMesssge('error_message', 'Invalid request.');
+$planId = (int) ($_POST['id'] ?? 0);
+if ($planId <= 0) {
+    Session::setFlashMessage('error_message', 'Invalid plan ID.');
     redirect('/admin/future-plans');
 }
 
-if ($action === 'resolve') {
-    adminResolveFuturePlan($db, $planId);
-    adminAuditLog(
-        $db,
-        'future_plan.resolve',
-        'future_plan',
-        (string) $planId,
-        'Resolved future plan'
-    );
-    Session::setFlashMesssge('success_message', 'Plan marked as resolved.');
-} else {
-    adminUnresolveFuturePlan($db, $planId);
-    adminAuditLog(
-        $db,
-        'future_plan.unresolve',
-        'future_plan',
-        (string) $planId,
-        'Reopened future plan'
-    );
-    Session::setFlashMesssge('success_message', 'Plan reopened.');
-}
+adminResolveFuturePlanById($db, $planId, $adminUserId);
+adminAuditLog($db, 'future_plan_resolve', 'future_plan', (string) $planId, "Resolved future plan ID: {$planId}");
+Session::setFlashMessage('success_message', 'Future plan marked as resolved.');
 
 redirect('/admin/future-plans');

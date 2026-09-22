@@ -431,7 +431,9 @@ $choices = [
             const isLastQuestion = String(form.dataset.isLast || '0') === '1';
             const activeQuestionIndex = Math.max(0, Number(<?= json_encode((int) ($current_index_zero ?? 0), JSON_UNESCAPED_SLASHES) ?>));
             const totalQuestions = Math.max(0, Number(<?= json_encode((int) ($total ?? 0), JSON_UNESCAPED_SLASHES) ?>));
-            const flaggedState = <?= json_encode(array_values(array_map(static function ($value) { return !empty($value); }, (array) ($flagged_questions ?? []))), JSON_UNESCAPED_SLASHES) ?>;
+            const flaggedState = <?= json_encode(array_values(array_map(static function ($value) {
+                                        return !empty($value);
+                                    }, (array) ($flagged_questions ?? []))), JSON_UNESCAPED_SLASHES) ?>;
             const questionTimes = <?= json_encode((array) (Session::get('quiz')['question_times'] ?? []), JSON_UNESCAPED_SLASHES) ?>;
             let isSubmittingFinal = false;
             let finalSubmitConfirmed = false;
@@ -542,22 +544,22 @@ $choices = [
                     buildQuestionTimesPayload();
 
                     fetch('/student/session/ping', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                    body: JSON.stringify({
-                        _token: csrfToken,
-                        current_index: activeQuestionIndex,
-                        selected_choice: currentChoiceValue(),
-                        flagged: !!flaggedState[activeQuestionIndex],
-                        reviewed_before_submit: reviewedBeforeSubmitField.value === '1',
-                        question_times: questionTimes,
-                        time_bonus_seconds: (window.__cbtTimeBonusSeconds || 0),
-                        action
-                    })
-                    }).then((response) => response.json())
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({
+                                _token: csrfToken,
+                                current_index: activeQuestionIndex,
+                                selected_choice: currentChoiceValue(),
+                                flagged: !!flaggedState[activeQuestionIndex],
+                                reviewed_before_submit: reviewedBeforeSubmitField.value === '1',
+                                question_times: questionTimes,
+                                time_bonus_seconds: (window.__cbtTimeBonusSeconds || 0),
+                                action
+                            })
+                        }).then((response) => response.json())
                         .then((payload) => {
                             if (!payload || payload.ok !== true) {
                                 throw new Error('Autosave failed');
@@ -859,7 +861,9 @@ $choices = [
 
                 event.preventDefault();
                 shortcutInput.checked = true;
-                shortcutInput.dispatchEvent(new Event('change', { bubbles: true }));
+                shortcutInput.dispatchEvent(new Event('change', {
+                    bubbles: true
+                }));
                 shortcutInput.focus();
             });
 
@@ -1306,9 +1310,9 @@ $choices = [
                             return;
                         }
 
-                        calculatorDisplay.value = calculatorDisplay.value.startsWith('-')
-                            ? calculatorDisplay.value.slice(1)
-                            : `-${calculatorDisplay.value}`;
+                        calculatorDisplay.value = calculatorDisplay.value.startsWith('-') ?
+                            calculatorDisplay.value.slice(1) :
+                            `-${calculatorDisplay.value}`;
                         resultLocked = false;
                         return;
                     }
@@ -1512,7 +1516,9 @@ $choices = [
                 setHistoryPanelOpen(false);
                 setCalculatorMode('basic');
                 window.addEventListener('resize', positionCalculator);
-                window.addEventListener('scroll', positionCalculator, { passive: true });
+                window.addEventListener('scroll', positionCalculator, {
+                    passive: true
+                });
             }
         })();
     </script>
@@ -1535,20 +1541,114 @@ $choices = [
         </div>
     </div>
     <style>
-        .cbt-admin-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.55);padding:16px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .24s ease,visibility .24s ease}
-        .cbt-admin-overlay.active{opacity:1;visibility:visible;pointer-events:auto}
-        .cbt-admin-overlay-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55)}
-        .cbt-admin-overlay-card{position:relative;width:min(420px,100%);background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 20px 40px rgba(15,23,42,.26);border:1px solid #e2e8f0;opacity:0;transform:translateY(14px) scale(.98);transition:opacity .24s ease,transform .24s ease}
-        .cbt-admin-overlay.active .cbt-admin-overlay-card{opacity:1;transform:translateY(0) scale(1)}
-        .cbt-admin-overlay-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-        .cbt-admin-overlay-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:#fee2e2;color:#991b1b;font-weight:800;font-size:15px}
-        .cbt-admin-overlay-title{font-size:1.05rem;font-weight:800;color:#172033;margin:0}
-        .cbt-admin-overlay-message{margin:0 0 16px;color:#334155;line-height:1.5}
-        .cbt-admin-overlay-actions{display:flex;justify-content:flex-end;gap:10px}
-        .cbt-admin-overlay-countdown{font-size:.85rem;color:#64748b;font-weight:700}
-        .timer-bonus{display:inline-block;margin-left:8px;font-size:.8rem;font-weight:700;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:999px}
-        #examTimer.admin-paused{opacity:.85}
-        #examTimer.admin-paused .timer-progress{background:#f59e0b}
+        .cbt-admin-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, .55);
+            padding: 16px;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .24s ease, visibility .24s ease
+        }
+
+        .cbt-admin-overlay.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto
+        }
+
+        .cbt-admin-overlay-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, .55)
+        }
+
+        .cbt-admin-overlay-card {
+            position: relative;
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            padding: 22px 20px;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, .26);
+            border: 1px solid #e2e8f0;
+            opacity: 0;
+            transform: translateY(14px) scale(.98);
+            transition: opacity .24s ease, transform .24s ease
+        }
+
+        .cbt-admin-overlay.active .cbt-admin-overlay-card {
+            opacity: 1;
+            transform: translateY(0) scale(1)
+        }
+
+        .cbt-admin-overlay-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px
+        }
+
+        .cbt-admin-overlay-icon {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #fee2e2;
+            color: #991b1b;
+            font-weight: 800;
+            font-size: 15px
+        }
+
+        .cbt-admin-overlay-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #172033;
+            margin: 0
+        }
+
+        .cbt-admin-overlay-message {
+            margin: 0 0 16px;
+            color: #334155;
+            line-height: 1.5
+        }
+
+        .cbt-admin-overlay-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px
+        }
+
+        .cbt-admin-overlay-countdown {
+            font-size: .85rem;
+            color: #64748b;
+            font-weight: 700
+        }
+
+        .timer-bonus {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: .8rem;
+            font-weight: 700;
+            color: #166534;
+            background: #dcfce7;
+            padding: 2px 8px;
+            border-radius: 999px
+        }
+
+        #examTimer.admin-paused {
+            opacity: .85
+        }
+
+        #examTimer.admin-paused .timer-progress {
+            background: #f59e0b
+        }
     </style>
 <?php endif; ?>
 

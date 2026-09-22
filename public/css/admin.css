@@ -1950,6 +1950,26 @@ table td:last-child {
   color: #ffffff;
   background: linear-gradient(120deg, #2563eb 0%, #0ea5a0 100%);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.student-lock-form .mini-btn {
+  padding: 6px 8px;
+}
+
+.student-lock-form .mini-btn .btn-text {
+  display: none;
+}
+
+.student-lock-form .mini-btn i {
+  font-size: 0.85rem;
+}
+
+.student-lock-form .mini-btn:hover .btn-text,
+.student-lock-form .mini-btn:focus .btn-text {
+  display: inline;
 }
 
 .mini-btn.ghost {
@@ -2267,7 +2287,6 @@ table td:last-child {
   margin-left: calc(var(--admin-sidebar-width) + var(--admin-sidebar-gap));
   width: calc(100% - (var(--admin-sidebar-width) + var(--admin-sidebar-gap)));
 }
-
 
 .admin-header,
 .admin-content main,

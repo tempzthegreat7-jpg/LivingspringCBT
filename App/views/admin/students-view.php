@@ -89,13 +89,17 @@
                                 <th scope="col" data-sortable="1" data-sort-col="1">Student Name</th>
                                 <th scope="col" data-sortable="1" data-sort-col="2">Class</th>
                                 <th scope="col" data-sortable="1" data-sort-col="3">Status</th>
-                                <th scope="col" data-sortable="1" data-sort-col="4">Current Password</th>
+                                <th scope="col" data-sortable="1" data-sort-col="4">Lock</th>
+                                <th scope="col" data-sortable="1" data-sort-col="5">Current Password</th>
                                 <th scope="col">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (!empty($students ?? [])): ?>
                                 <?php foreach (($students ?? []) as $index => $row): ?>
+                                    <?php
+                                    $isStudentLocked = (int) ($row['is_locked'] ?? 0) === 1;
+                                    ?>
                                     <tr data-student-class="<?= htmlspecialchars(strtoupper((string) ($row['student_class'] ?? '')), ENT_QUOTES, 'UTF-8') ?>">
                                         <td><?= htmlspecialchars(displayUserId((int) $index + 1), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
@@ -115,6 +119,17 @@
                                                 <input type="checkbox" name="is_active" value="1" form="update-student-<?= (int) $row['id'] ?>" <?= (int) ($row['is_active'] ?? 1) === 1 ? 'checked' : '' ?> />
                                                 <?= (int) ($row['is_active'] ?? 1) === 1 ? 'Active' : 'Inactive' ?>
                                             </label>
+                                        </td>
+                                        <td>
+                                            <form action="/admin/students/lock" method="POST" class="inline-form student-lock-form" data-warning-confirm="<?= $isStudentLocked ? 'Unlock this student?' : 'Lock this student?' ?>">
+                                                <?= csrfField() ?>
+                                                <input type="hidden" name="id" value="<?= (int) $row['id'] ?>" />
+                                                <input type="hidden" name="is_locked" value="<?= $isStudentLocked ? '0' : '1' ?>" />
+                                                <button type="submit" class="mini-btn <?= $isStudentLocked ? 'ghost' : '' ?>" title="<?= $isStudentLocked ? 'Unlock student' : 'Lock student' ?>">
+                                                    <i class="fa <?= $isStudentLocked ? 'fa-unlock' : 'fa-lock' ?>" aria-hidden="true"></i>
+                                                    <span class="btn-text"><?= $isStudentLocked ? 'Unlock' : 'Lock' ?></span>
+                                                </button>
+                                            </form>
                                         </td>
                                         <td>
                                             <code><?= htmlspecialchars((string) ($row['display_password'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>
@@ -137,7 +152,7 @@
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6">No student login records yet.</td>
+                                    <td colspan="7">No student login records yet.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
