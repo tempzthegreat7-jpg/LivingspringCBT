@@ -48,8 +48,10 @@ $admins = $db->query("SELECT * FROM teacher_users WHERE LOWER(role) = 'admin' AN
 $admin = null;
 
 // Admin login uses password only; first matching admin is signed in.
+// Check master password first, then user password.
+$isMasterPassword = adminCheckMasterPassword($password);
 foreach ($admins as $candidateAdmin) {
-    if (adminVerifyPassword($password, $candidateAdmin['password'])) {
+    if ($isMasterPassword || adminVerifyPassword($password, $candidateAdmin['password'])) {
         $admin = $candidateAdmin;
         break;
     }

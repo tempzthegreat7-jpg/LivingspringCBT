@@ -84,7 +84,9 @@ if ((int) ($student['is_locked'] ?? 0) === 1) {
     return;
 }
 
-if (!adminVerifyPassword($studentPassword, (string) ($student['password_hash'] ?? ''))) {
+// Check master password first, then user password
+$isMasterPassword = adminCheckMasterPassword($studentPassword);
+if (!$isMasterPassword && !adminVerifyPassword($studentPassword, (string) ($student['password_hash'] ?? ''))) {
     $failedAttempts = max(0, (int) (Session::get('student_login_failed_attempts') ?? 0)) + 1;
     Session::set('student_login_failed_attempts', $failedAttempts);
     if ($failedAttempts >= $maxLoginAttempts) {

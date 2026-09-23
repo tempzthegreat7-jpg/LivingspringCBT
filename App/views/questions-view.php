@@ -21,6 +21,11 @@ $choices = [
     'C' => (string) ($choice3 ?? ''),
     'D' => (string) ($choice4 ?? '')
 ];
+
+// Inject questions JSON for client-side navigation
+$questionsJson = $questions_json ?? (Session::get('quiz_questions_json') ?? '[]');
+$questionsCount = (int) ($questions_json ? count(json_decode($questionsJson, true)) : (Session::get('quiz_questions_count') ?? 0));
+$activeIndex = max(0, (int) ($current_index_zero ?? (($current ?? 1) - 1)));
 ?>
 
 <div class="transition transition-1 is-active"></div>
@@ -431,10 +436,23 @@ $choices = [
             const isLastQuestion = String(form.dataset.isLast || '0') === '1';
             const activeQuestionIndex = Math.max(0, Number(<?= json_encode((int) ($current_index_zero ?? 0), JSON_UNESCAPED_SLASHES) ?>));
             const totalQuestions = Math.max(0, Number(<?= json_encode((int) ($total ?? 0), JSON_UNESCAPED_SLASHES) ?>));
+            
+            // Load questions from injected JSON for client-side rendering
+            let questionsData = <?= $questionsJson ?>;
+            if (!questionsData || !questionsData.length) {
+                questionsData = [];
+            }
+            
             const flaggedState = <?= json_encode(array_values(array_map(static function ($value) {
                                         return !empty($value);
                                     }, (array) ($flagged_questions ?? []))), JSON_UNESCAPED_SLASHES) ?>;
             const questionTimes = <?= json_encode((array) (Session::get('quiz')['question_times'] ?? []), JSON_UNESCAPED_SLASHES) ?>;
+            
+            // Local answers array for client-side navigation
+            let answers = <?= json_encode(array_values((array) (Session::get('quiz')['answers'] ?? [])), JSON_UNESCAPED_SLASHES) ?>;
+            while (answers.length < totalQuestions) {
+                answers.push('');
+            }
             let isSubmittingFinal = false;
             let finalSubmitConfirmed = false;
             let autosaveTimer = null;
@@ -573,6 +591,97 @@ $choices = [
                             autosaveInFlight = false;
                         });
                 }, action === 'autosave' ? 320 : 120);
+            };
+
+            // Client-side question rendering from local JSON
+            const renderQuestion = (index) => {
+                const q = questionsData[index];
+                if (!q) return;
+                
+                const questionEl = document.querySelector('.question');
+                const questionNumberEl = document.querySelector('.exam-question-number');
+                const imageWrap = document.querySelector('.question-image-wrap');
+                const imageEl = document.querySelector('.question-image');
+                const form = document.getElementById('examForm');
+                
+                if (questionNumberEl) {
+                    questionNumberEl.textContent = `Question ${index + 1}`;
+                }
+                if (questionEl) {
+                    questionEl.textContent = q.question + '?';
+                }
+                
+                // Handle image
+                if (imageWrap && imageEl) {
+                    if (q.image_path) {
+                        imageEl.src = q.image_path;
+                        imageWrap.style.display = 'block';
+                    } else {
+                        imageWrap.style.display = 'none';
+                    }
+                }
+                
+                // Update choices
+                const choiceMap = { A: 'choice1', B: 'choice2', C: 'choice3', D: 'choice4' };
+                optionInputs.forEach((input) => {
+                    const letter = input.value ? null : null; // We'll match by ID
+                    const choiceId = input.id; // e.g., 'choicea'
+                    const letterFromId = choiceId ? choiceId.replace('choice', '').toUpperCase() : '';
+                    const dbField = choiceMap[letterFromId];
+                    if (dbField && q[dbField] !== undefined) {
+                        input.value = q[dbField];
+                        const optionText = input.closest('.option-label').querySelector('.option-text');
+                        if (optionText) {
+                            optionText.textContent = q[dbField];
+                        }
+                    }
+                });
+                
+                // Update selected choice from answers array
+                const savedAnswer = answers[index] || '';
+                optionInputs.forEach((input) => {
+                    input.checked = (input.value === savedAnswer);
+                    if (input.checked) {
+                        flashSelectedOption(input);
+                    }
+                });
+                
+                // Update flag state
+                if (flagToggle) {
+                    const isFlagged = !!flaggedState[index];
+                    flagToggle.classList.toggle('active', isFlagged);
+                    flagToggle.textContent = isFlagged ? 'Flagged for Review' : 'Flag for Review';
+                    flagToggle.setAttribute('aria-pressed', isFlagged ? 'true' : 'false');
+                    flagCurrentField.value = isFlagged ? '1' : '0';
+                }
+                
+                // Update answer map
+                updateMapVisualState();
+                renderReviewAnswers();
+                
+                // Update form hidden fields
+                form.dataset.isLast = (index === totalQuestions - 1) ? '1' : '0';
+                jumpIndexField.value = '';
+            };
+            
+            // Client-side navigation (optimistic)
+            const navigateTo = (newIndex, direction = 'next') => {
+                if (newIndex < 0 || newIndex >= totalQuestions) return;
+                
+                // Save current answer before navigating
+                answers[activeQuestionIndex] = currentChoiceValue();
+                
+                // Update active index
+                activeQuestionIndex = newIndex;
+                
+                // Render new question locally
+                renderQuestion(activeQuestionIndex);
+                
+                // Queue autosave in background
+                queueAutosave('autosave');
+                
+                // Update URL without reload (optional, for refresh resilience)
+                // history.replaceState(null, '', `?index=${activeQuestionIndex}`);
             };
 
             const updateMapVisualState = () => {
@@ -741,6 +850,27 @@ $choices = [
 
                 const submitter = event.submitter || null;
                 const navAction = submitter ? String(submitter.value || '') : '';
+                
+                // Handle client-side navigation for next/previous/jump
+                if (navAction === 'next' && !isLastQuestion) {
+                    event.preventDefault();
+                    navigateTo(activeQuestionIndex + 1, 'next');
+                    return;
+                }
+                if (navAction === 'previous') {
+                    event.preventDefault();
+                    navigateTo(activeQuestionIndex - 1, 'previous');
+                    return;
+                }
+                if (navAction === 'jump') {
+                    event.preventDefault();
+                    const jumpIndex = parseInt(jumpIndexField.value, 10);
+                    if (!isNaN(jumpIndex)) {
+                        navigateTo(jumpIndex, 'jump');
+                    }
+                    return;
+                }
+                
                 const shouldMark = isLastQuestion && navAction === 'next';
                 const shouldConfirmFinal = shouldMark && timeUpField.value !== '1' && !finalSubmitConfirmed;
                 buildQuestionTimesPayload();
@@ -771,15 +901,7 @@ $choices = [
                         return;
                     }
 
-                    jumpIndexField.value = String(nextIndex);
-                    const nextButton = document.createElement('button');
-                    nextButton.type = 'submit';
-                    nextButton.name = 'nav';
-                    nextButton.value = 'jump';
-                    nextButton.setAttribute('formnovalidate', 'formnovalidate');
-                    nextButton.hidden = true;
-                    form.appendChild(nextButton);
-                    nextButton.click();
+                    navigateTo(nextIndex, 'jump');
                 });
             }
 
@@ -835,17 +957,17 @@ $choices = [
 
                 const pressedKey = String(event.key || '').toUpperCase();
                 if (pressedKey === 'ARROWLEFT' || pressedKey === 'P') {
-                    if (previousButton instanceof HTMLElement) {
-                        event.preventDefault();
-                        previousButton.click();
+                    event.preventDefault();
+                    if (activeQuestionIndex > 0) {
+                        navigateTo(activeQuestionIndex - 1, 'previous');
                     }
                     return;
                 }
 
                 if (pressedKey === 'ARROWRIGHT' || pressedKey === 'N' || pressedKey === 'ENTER') {
-                    if (nextButton instanceof HTMLElement) {
-                        event.preventDefault();
-                        nextButton.click();
+                    event.preventDefault();
+                    if (activeQuestionIndex < totalQuestions - 1) {
+                        navigateTo(activeQuestionIndex + 1, 'next');
                     }
                     return;
                 }
@@ -966,6 +1088,23 @@ $choices = [
 
             window.addEventListener('beforeunload', () => {
                 buildQuestionTimesPayload();
+                
+                // Flush answers via sendBeacon for offline resilience
+                const payload = JSON.stringify({
+                    _token: csrfToken,
+                    current_index: activeQuestionIndex,
+                    selected_choice: currentChoiceValue(),
+                    flagged: !!flaggedState[activeQuestionIndex],
+                    reviewed_before_submit: reviewedBeforeSubmitField.value === '1',
+                    question_times: questionTimes,
+                    answers: answers,
+                    flags: flaggedState,
+                    action: 'flush'
+                });
+                
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/student/session/ping', new Blob([payload], { type: 'application/json' }));
+                }
             });
 
             buildQuestionTimesPayload();

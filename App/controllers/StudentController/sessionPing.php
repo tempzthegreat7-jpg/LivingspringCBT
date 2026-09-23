@@ -47,6 +47,8 @@ $currentIndex = max(0, min((int) ($payload['current_index'] ?? ($quiz['current_i
 $selectedChoice = array_key_exists('selected_choice', $payload) ? trim((string) ($payload['selected_choice'] ?? '')) : null;
 $flagged = array_key_exists('flagged', $payload) ? (bool) $payload['flagged'] : null;
 $questionTimes = is_array($payload['question_times'] ?? null) ? $payload['question_times'] : [];
+$answersPayload = is_array($payload['answers'] ?? null) ? $payload['answers'] : [];
+$flagsPayload = is_array($payload['flags'] ?? null) ? $payload['flags'] : [];
 $timeBonusSeconds = max(0, (int) ($payload['time_bonus_seconds'] ?? 0));
 $action = trim((string) ($payload['action'] ?? 'autosave'));
 $reviewedBeforeSubmit = !empty($payload['reviewed_before_submit']) || !empty($quiz['reviewed_before_submit']);
@@ -54,6 +56,16 @@ $reviewedBeforeSubmit = !empty($payload['reviewed_before_submit']) || !empty($qu
 $answers = is_array($quiz['answers'] ?? null) ? $quiz['answers'] : [];
 $flags = is_array($quiz['flags'] ?? null) ? $quiz['flags'] : [];
 $storedQuestionTimes = is_array($quiz['question_times'] ?? null) ? $quiz['question_times'] : [];
+
+// Merge full answers array if provided (for flush action)
+if (!empty($answersPayload)) {
+    $answers = $answersPayload;
+}
+
+// Merge full flags array if provided
+if (!empty($flagsPayload)) {
+    $flags = $flagsPayload;
+}
 
 if ($selectedChoice !== null) {
     $answers[$currentIndex] = $selectedChoice;

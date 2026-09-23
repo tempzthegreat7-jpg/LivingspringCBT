@@ -78,6 +78,11 @@ $term = $task === 'exam'
     : '';
 $headerText = trim((string) ($configRow['header_text'] ?? ''));
 
+// Store questions JSON for offline-first rendering
+$questionsJson = json_encode($questions, JSON_UNESCAPED_SLASHES);
+Session::set('quiz_questions_json', $questionsJson);
+Session::set('quiz_questions_count', count($questions));
+
 if ($task === 'exam') {
     $activeExamSession = studentFindActiveExamSession($db, $studentName, $studentClass);
     $sameAssessmentSession = $activeExamSession
@@ -95,7 +100,8 @@ if ($task === 'exam') {
         $resumeQuestion = $resumeQuestions[$resumeIndex] ?? null;
         $resumeSubjects = Session::get('subjects') ?? [];
 
-        if ($resumeQuestion) {
+if ($resumeQuestion) {
+            $resumeQuestionsJson = json_encode($resumeQuestions, JSON_UNESCAPED_SLASHES);
             studentLogExamSessionEvent($db, [
                 'session_id' => (int) ($activeExamSession['id'] ?? 0),
                 'student_name' => $studentName,
@@ -129,7 +135,8 @@ if ($task === 'exam') {
                 'exam_duration_seconds' => (int) ($quiz['duration_seconds'] ?? 0),
                 'flagged_questions' => $resumeFlags,
                 'last_autosaved_at' => (string) ($quiz['last_autosaved_at'] ?? ''),
-                'resume_count' => (int) ($quiz['resume_count'] ?? 0)
+                'resume_count' => (int) ($quiz['resume_count'] ?? 0),
+                'questions_json' => $resumeQuestionsJson
             ]);
             return;
         }
@@ -221,5 +228,6 @@ loadView('/questions', [
     'exam_duration_seconds' => $durationSeconds,
     'flagged_questions' => [],
     'last_autosaved_at' => '',
-    'resume_count' => 0
+    'resume_count' => 0,
+    'questions_json' => $questionsJson
 ]);

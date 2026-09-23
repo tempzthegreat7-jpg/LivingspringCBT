@@ -15,6 +15,7 @@ $router->get('/student/correction', 'StudentController@correction')->only('stude
 $router->get('/student/feedback', 'StudentController@feedback')->only('student');
 $router->post('/student/feedback', 'StudentController@submitFeedback')->only('student');
 $router->post('/student/session/ping', 'StudentController@sessionPing')->only('student');
+$router->get('/student/logout', 'StudentController@logout')->only('student');
 
 
 $router->get('/teacher/subject', 'TeacherController@subject')->only('guest');

@@ -119,6 +119,11 @@
                                                 <input type="checkbox" name="is_active" value="1" form="update-student-<?= (int) $row['id'] ?>" <?= (int) ($row['is_active'] ?? 1) === 1 ? 'checked' : '' ?> />
                                                 <?= (int) ($row['is_active'] ?? 1) === 1 ? 'Active' : 'Inactive' ?>
                                             </label>
+                                            <?php if ($isStudentLocked): ?>
+                                                <span class="status-pill locked" style="margin-left: 8px; font-size: 0.7rem;">
+                                                    <i class="fa fa-lock" aria-hidden="true"></i> Locked
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <form action="/admin/students/lock" method="POST" class="inline-form student-lock-form" data-warning-confirm="<?= $isStudentLocked ? 'Unlock this student?' : 'Lock this student?' ?>">

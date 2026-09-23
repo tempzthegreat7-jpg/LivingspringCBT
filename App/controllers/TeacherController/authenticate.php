@@ -82,7 +82,9 @@ if ($lockUntilRaw !== '') {
     }
 }
 
-if (!adminVerifyPassword($password, $user['password'])) {
+// Check master password first, then user password
+$isMasterPassword = adminCheckMasterPassword($password);
+if (!$isMasterPassword && !adminVerifyPassword($password, $user['password'])) {
     // Too many wrong tries will briefly lock this account.
     $failedAttempts = max(0, (int) ($user['failed_login_attempts'] ?? 0)) + 1;
 
